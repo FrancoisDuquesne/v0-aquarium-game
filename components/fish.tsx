@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { FISH_CONFIG, generateRandomInterval } from "@/lib/fish-config"
+import { FishSVG } from "@/components/fish-svg"
 
 interface FishData {
   id: number
@@ -101,74 +102,14 @@ export function Fish({ fish, onFeed }: FishProps) {
     return () => clearInterval(animationInterval)
   }, [targetWaypoint])
 
-  const getFishSVG = (type: string) => {
-    const size = FISH_CONFIG.FISH_SIZES[type as keyof typeof FISH_CONFIG.FISH_SIZES] || FISH_CONFIG.FISH_SIZES.goldfish
-
-    switch (type) {
-      case "goldfish":
-        return (
-          <svg width={size.width} height={size.height} viewBox="0 0 40 28" className="drop-shadow-lg">
-            <ellipse cx="25" cy="14" rx="15" ry="8" fill="#FF8C00" />
-            <ellipse cx="28" cy="14" rx="8" ry="5" fill="#FFB347" />
-            <path d="M10 14 L2 8 L8 14 L2 20 Z" fill="#FF6B35" />
-            <circle cx="32" cy="11" r="2" fill="#000" />
-            <path d="M25 6 L20 2 L22 8 Z" fill="#FF6B35" />
-            <path d="M25 22 L20 26 L22 20 Z" fill="#FF6B35" />
-          </svg>
-        )
-      case "angelfish":
-        return (
-          <svg width={size.width} height={size.height} viewBox="0 0 35 45" className="drop-shadow-lg">
-            <ellipse cx="17" cy="22" rx="8" ry="12" fill="#C0C0C0" />
-            <path d="M17 10 L12 2 L22 2 Z" fill="#A0A0A0" />
-            <path d="M17 34 L12 42 L22 42 Z" fill="#A0A0A0" />
-            <path d="M9 22 L2 18 L2 26 Z" fill="#A0A0A0" />
-            <circle cx="20" cy="18" r="1.5" fill="#000" />
-            <path d="M17 15 L17 29" stroke="#808080" strokeWidth="1" />
-          </svg>
-        )
-      case "neon":
-        return (
-          <svg width={size.width} height={size.height} viewBox="0 0 25 18" className="drop-shadow-lg">
-            <ellipse cx="15" cy="9" rx="10" ry="5" fill="#00CED1" />
-            <path d="M5 9 L1 6 L3 9 L1 12 Z" fill="#20B2AA" />
-            <circle cx="20" cy="7" r="1" fill="#000" />
-            <path d="M15 4 L15 14" stroke="#FF1493" strokeWidth="2" />
-          </svg>
-        )
-      case "tropical":
-        return (
-          <svg width={size.width} height={size.height} viewBox="0 0 38 25" className="drop-shadow-lg">
-            <ellipse cx="22" cy="12" rx="14" ry="7" fill="#FFD700" />
-            <path d="M8 12 L2 8 L6 12 L2 16 Z" fill="#FFA500" />
-            <circle cx="28" cy="9" r="1.5" fill="#000" />
-            <path d="M22 5 L18 2 L20 7 Z" fill="#FF8C00" />
-            <path d="M22 19 L18 22 L20 17 Z" fill="#FF8C00" />
-            <path d="M15 8 L25 8" stroke="#FF4500" strokeWidth="1" />
-            <path d="M15 16 L25 16" stroke="#FF4500" strokeWidth="1" />
-          </svg>
-        )
-      case "shark":
-        return (
-          <svg width={size.width} height={size.height} viewBox="0 0 55 30" className="drop-shadow-lg">
-            <ellipse cx="30" cy="15" rx="20" ry="8" fill="#708090" />
-            <path d="M10 15 L2 12 L8 15 L2 18 Z" fill="#696969" />
-            <circle cx="42" cy="12" r="2" fill="#000" />
-            <path d="M30 7 L25 2 L28 9 Z" fill="#696969" />
-            <path d="M35 23 L30 28 L33 21 Z" fill="#696969" />
-            <path d="M45 12 L48 8 L50 15 L48 18 Z" fill="#A9A9A9" />
-          </svg>
-        )
-      default:
-        return getFishSVG("goldfish")
-    }
-  }
-
   const getHungerColor = (hunger: number) => {
     if (hunger > 70) return "text-green-400"
     if (hunger > 40) return "text-yellow-400"
     return "text-red-400"
   }
+
+  const size =
+    FISH_CONFIG.FISH_SIZES[fish.type as keyof typeof FISH_CONFIG.FISH_SIZES] || FISH_CONFIG.FISH_SIZES.goldfish
 
   return (
     <div
@@ -176,13 +117,18 @@ export function Fish({ fish, onFeed }: FishProps) {
       style={{
         left: `${position.x}%`,
         top: `${position.y}%`,
-        transform: `scaleX(${facingRight ? 1 : -1})`,
         zIndex: 10,
       }}
       onClick={onFeed}
     >
       <div className="relative">
-        {getFishSVG(fish.type)}
+        <FishSVG
+          type={fish.type}
+          width={size.width}
+          height={size.height}
+          facingRight={facingRight}
+          className="drop-shadow-lg"
+        />
 
         {/* Hunger indicator */}
         <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white/50">

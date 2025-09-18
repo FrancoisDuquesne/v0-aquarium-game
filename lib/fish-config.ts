@@ -18,11 +18,11 @@ export const FISH_CONFIG = {
 
   // Fish sizes
   FISH_SIZES: {
-    goldfish: { width: 40, height: 28 },
-    angelfish: { width: 35, height: 45 },
-    neon: { width: 25, height: 18 },
-    tropical: { width: 38, height: 25 },
-    shark: { width: 55, height: 30 },
+    neon: { width: 20, height: 14 }, // Smallest fish (base size)
+    goldfish: { width: 40, height: 28 }, // 2x larger than neon
+    tropical: { width: 60, height: 42 }, // 3x larger than neon
+    angelfish: { width: 50, height: 80 }, // Tall and elegant, 4x area of neon
+    shark: { width: 160, height: 112 }, // 8x larger than neon (massive)
   },
 }
 
