@@ -16,6 +16,7 @@ interface FishData {
 interface FishProps {
   fish: FishData
   onFeed: () => void
+  isBeingFed?: boolean // Added prop for feeding visual feedback
 }
 
 function levyFlight(mu = 1.5, minStep = 1, maxStep = 100) {
@@ -43,7 +44,7 @@ function lerp(start: number, end: number, progress: number) {
   return start + (end - start) * progress
 }
 
-export function Fish({ fish, onFeed }: FishProps) {
+export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
   const [position, setPosition] = useState({ x: fish.x, y: fish.y })
   const [targetWaypoint, setTargetWaypoint] = useState({ x: fish.x, y: fish.y })
   const [facingRight, setFacingRight] = useState(true)
@@ -113,7 +114,9 @@ export function Fish({ fish, onFeed }: FishProps) {
 
   return (
     <div
-      className="absolute cursor-pointer transition-transform hover:scale-110 float-animation"
+      className={`absolute cursor-pointer transition-all duration-300 hover:scale-110 float-animation ${
+        isBeingFed ? "animate-pulse scale-125" : ""
+      }`} // Added feeding animation classes
       style={{
         left: `${position.x}%`,
         top: `${position.y}%`,
@@ -122,6 +125,8 @@ export function Fish({ fish, onFeed }: FishProps) {
       onClick={onFeed}
     >
       <div className="relative">
+        {isBeingFed && <div className="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping scale-150" />}
+
         <FishSVG
           type={fish.type}
           width={size.width}
@@ -138,10 +143,9 @@ export function Fish({ fish, onFeed }: FishProps) {
           />
         </div>
 
-        {/* Feed animation */}
-        {fish.hunger > 95 && (
+        {(fish.hunger > 95 || isBeingFed) && (
           <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs text-green-400 animate-bounce">
-            ❤️
+            {isBeingFed ? "🍽️" : "❤️"}
           </div>
         )}
       </div>

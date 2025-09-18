@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Fish } from "./fish"
 import { Bubbles } from "./bubbles"
+import { AutoFeeder } from "./auto-feeder"
 
 interface FishData {
   id: number
@@ -13,12 +14,28 @@ interface FishData {
   speed: number
 }
 
+interface AutoFeederData {
+  owned: boolean
+  active: boolean
+  lastFeedTime: number
+  feedInterval: number
+}
+
 interface AquariumDisplayProps {
   fish: FishData[]
   onFeedFish: (fishId: number) => void
+  feedingFish?: number | null
+  autoFeeder: AutoFeederData // Added auto feeder prop
+  onToggleAutoFeeder?: () => void // Added toggle function prop
 }
 
-export function AquariumDisplay({ fish, onFeedFish }: AquariumDisplayProps) {
+export function AquariumDisplay({
+  fish,
+  onFeedFish,
+  feedingFish,
+  autoFeeder,
+  onToggleAutoFeeder,
+}: AquariumDisplayProps) {
   const [bubbles, setBubbles] = useState<Array<{ id: number; x: number; delay: number }>>([])
 
   useEffect(() => {
@@ -50,8 +67,17 @@ export function AquariumDisplay({ fish, onFeedFish }: AquariumDisplayProps) {
 
       {/* Fish */}
       {safeFish.map((fishData) => (
-        <Fish key={fishData.id} fish={fishData} onFeed={() => onFeedFish(fishData.id)} />
+        <Fish
+          key={fishData.id}
+          fish={fishData}
+          onFeed={() => onFeedFish(fishData.id)}
+          isBeingFed={feedingFish === fishData.id}
+        />
       ))}
+
+      {autoFeeder?.owned && onToggleAutoFeeder && (
+        <AutoFeeder isActive={autoFeeder.active} onToggle={onToggleAutoFeeder} />
+      )}
 
       {/* Bubbles */}
       <Bubbles bubbles={bubbles} />
