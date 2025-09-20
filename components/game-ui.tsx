@@ -1,11 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FishSVG } from "@/components/fish-svg"
-import FishInventory from "@/components/fish-inventory"
+const FishInventory = dynamic(() => import("@/components/fish-inventory"), {
+  ssr: false,
+  loading: () => <div className="fixed inset-0 flex items-center justify-center z-30">Loading…</div>,
+})
 
 interface FishData {
   id: number
@@ -31,6 +35,12 @@ interface GameUIProps {
   autoFeeder: AutoFeederData | null
   onBuyAutoFeeder: (cost: number) => void
   onToggleAutoFeeder: () => void
+  tools?: { spoonOwned: boolean }
+  selectedTool: 'flake' | 'spoon'
+  onSelectTool: (tool: 'flake' | 'spoon') => void
+  onBuySpoon: (cost: number) => void
+  onFeedFishInInventory?: (fishId: number, amount?: number) => void
+  onRemoveFish?: (fishId: number) => void
 }
 
 export function GameUI({
@@ -41,34 +51,41 @@ export function GameUI({
   autoFeeder,
   onBuyAutoFeeder,
   onToggleAutoFeeder,
+  tools,
+  selectedTool,
+  onSelectTool,
+  onBuySpoon,
+  onFeedFishInInventory,
+  onRemoveFish,
 }: GameUIProps) {
   const [showShop, setShowShop] = useState(false)
   const [showInventory, setShowInventory] = useState(false)
+  const [inventoryInitialTab, setInventoryInitialTab] = useState<'inventory' | 'store'>('inventory')
 
   const fishShop = [
     {
       type: "goldfish",
       name: "Goldfish",
       cost: 50,
-      description: "A classic orange goldfish. Hardy and friendly, perfect for beginners!",
+      description: "A classic orange goldfish. Hardy and friendly (non-schooling).",
     },
     {
       type: "angelfish",
       name: "Angelfish",
       cost: 100,
-      description: "Elegant silver fish with tall fins. Graceful swimmers that add sophistication.",
+      description: "Elegant silver fish with tall fins. Graceful swimmers (light schooling).",
     },
     {
       type: "neon",
       name: "Neon Tetra",
       cost: 75,
-      description: "Bright cyan fish with pink stripes. Small but vibrant schooling fish.",
+      description: "Bright cyan with pink stripe. Strong schooling species — thrives in groups.",
     },
     {
       type: "tropical",
       name: "Tropical Fish",
       cost: 150,
-      description: "Golden yellow with orange stripes. Exotic beauty from warm waters.",
+      description: "Golden yellow with orange stripes. Often schools loosely in mid-water.",
     },
     {
       type: "shark",
@@ -86,6 +103,13 @@ export function GameUI({
       description:
         "Automatically feeds your fish every 30 seconds when they're hungry. A must-have for busy aquarium owners!",
       owned: autoFeeder?.owned || false,
+    },
+    {
+      type: "spoon",
+      name: "Feeding Spoon",
+      cost: 200,
+      description: "Drop a handful of flakes with one click. Great for schooling fish.",
+      owned: !!tools?.spoonOwned,
     },
   ]
 
@@ -111,7 +135,7 @@ export function GameUI({
             variant="secondary"
             className="text-xs sm:text-sm px-2 py-1 sm:px-3 bg-gray-900/70 text-gray-100 backdrop-blur border-gray-700"
           >
-            💰 {coins}
+            💰 {Math.round(coins)}
           </Badge>
           <Badge
             variant="secondary"
@@ -140,12 +164,31 @@ export function GameUI({
         </div>
       </div>
 
+      {/* Tool palette */}
+      <div className="absolute top-12 left-2 z-20 flex gap-2 bg-gray-900/70 border border-gray-700 rounded-md p-1 backdrop-blur">
+        <Button
+          size="sm"
+          onClick={() => onSelectTool('flake')}
+          className={`text-xs px-2 py-1 ${selectedTool === 'flake' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-200'}`}
+        >
+          🍽️ Flake
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => tools?.spoonOwned && onSelectTool('spoon')}
+          disabled={!tools?.spoonOwned}
+          className={`text-xs px-2 py-1 ${selectedTool === 'spoon' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-200'} disabled:bg-gray-700 disabled:text-gray-400`}
+        >
+          🥄 Spoon
+        </Button>
+      </div>
+
       {showHowTo && (
         <div className="absolute bottom-16 left-2 right-2 sm:bottom-20 sm:left-3 sm:right-auto z-20">
           <div className="bg-gray-900/80 rounded-lg backdrop-blur border-gray-700 p-3 sm:p-2 animate-pulse">
             <p className="text-xs sm:text-sm text-gray-300 text-center sm:text-left">
-              <span className="hidden sm:inline">👆 Click fish to feed • They generate coins over time</span>
-              <span className="sm:hidden">👆 Tap fish to feed them</span>
+              <span className="hidden sm:inline">👆 Click to drop food • Use the tool palette to switch feeding modes</span>
+              <span className="sm:hidden">👆 Tap to drop food • Select tools</span>
             </p>
           </div>
         </div>
@@ -154,14 +197,20 @@ export function GameUI({
       <div className="fixed bottom-4 left-4 right-4 z-20">
         <div className="flex gap-3 justify-center max-w-sm mx-auto">
           <Button
-            onClick={() => setShowInventory(!showInventory)}
+            onClick={() => {
+              setInventoryInitialTab('inventory')
+              setShowInventory(true)
+            }}
             size="md"
             className="flex-1 bg-gray-900/80 hover:bg-gray-800/90 text-gray-100 backdrop-blur border-gray-700 text-sm p-2 rounded-lg shadow-lg"
           >
             📋 <span className="ml-2">Inventory</span>
           </Button>
           <Button
-            onClick={() => setShowShop(!showShop)}
+            onClick={() => {
+              setInventoryInitialTab('store')
+              setShowInventory(true)
+            }}
             size="md"
             className="flex-1 bg-blue-600/80 hover:bg-blue-700/90 text-white backdrop-blur border-blue-500 text-sm p-2 rounded-lg shadow-lg"
           >
@@ -200,7 +249,7 @@ export function GameUI({
                       <div className="flex items-start justify-between mb-3 gap-2">
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                           <div className="w-12 h-10 sm:w-16 sm:h-12 flex items-center justify-center bg-gray-700/50 rounded overflow-hidden shrink-0">
-                            <div className="text-2xl">🤖</div>
+                            <div className="text-2xl">{item.type === 'spoon' ? '🥄' : '🤖'}</div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="text-gray-200 font-medium text-sm sm:text-base truncate">{item.name}</div>
@@ -212,18 +261,24 @@ export function GameUI({
                         {item.owned ? (
                           <Button
                             size="sm"
-                            onClick={onToggleAutoFeeder}
+                            onClick={item.type === 'spoon' ? () => onSelectTool('spoon') : onToggleAutoFeeder}
                             className={`text-xs px-3 py-2 shrink-0 min-h-[36px] sm:min-h-[32px] ${
-                              autoFeeder?.active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+                              item.type === 'spoon'
+                                ? selectedTool === 'spoon'
+                                  ? 'bg-blue-600 hover:bg-blue-700'
+                                  : 'bg-gray-700 hover:bg-gray-600'
+                                : autoFeeder?.active
+                                  ? 'bg-red-600 hover:bg-red-700'
+                                  : 'bg-green-600 hover:bg-green-700'
                             }`}
                           >
-                            {autoFeeder?.active ? "Turn Off" : "Turn On"}
+                            {item.type === 'spoon' ? (selectedTool === 'spoon' ? 'Selected' : 'Select') : autoFeeder?.active ? 'Turn Off' : 'Turn On'}
                           </Button>
                         ) : (
                           <Button
                             size="sm"
                             disabled={coins < item.cost}
-                            onClick={() => onBuyAutoFeeder(item.cost)}
+                            onClick={() => (item.type === 'spoon' ? onBuySpoon(item.cost) : onBuyAutoFeeder(item.cost))}
                             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-xs px-3 py-2 shrink-0 min-h-[36px] sm:min-h-[32px]"
                           >
                             Buy
@@ -283,7 +338,24 @@ export function GameUI({
       )}
 
       {/* Inventory Modal */}
-      {showInventory && <FishInventory fish={fish} onClose={() => setShowInventory(false)} />}
+      {showInventory && (
+        <FishInventory
+          fish={fish}
+          onClose={() => setShowInventory(false)}
+          initialTab={inventoryInitialTab}
+          coins={coins}
+          onBuyFish={onBuyFish}
+          autoFeeder={autoFeeder}
+          onBuyAutoFeeder={onBuyAutoFeeder}
+          onToggleAutoFeeder={onToggleAutoFeeder}
+          tools={tools}
+          selectedTool={selectedTool}
+          onSelectTool={onSelectTool}
+          onBuySpoon={onBuySpoon}
+          onFeedFish={onFeedFishInInventory}
+          onRemoveFish={onRemoveFish}
+        />
+      )}
     </>
   )
 }

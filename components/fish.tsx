@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo } from "react"
 import { FISH_CONFIG, generateRandomInterval } from "@/lib/fish-config"
 import { FishSVG } from "@/components/fish-svg"
 
@@ -44,11 +44,10 @@ function lerp(start: number, end: number, progress: number) {
   return start + (end - start) * progress
 }
 
-export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
+function FishComponent({ fish, onFeed, isBeingFed }: FishProps) {
   const [position, setPosition] = useState({ x: fish.x, y: fish.y })
   const [targetWaypoint, setTargetWaypoint] = useState({ x: fish.x, y: fish.y })
   const [facingRight, setFacingRight] = useState(true)
-  const [movementProgress, setMovementProgress] = useState(0)
 
   useEffect(() => {
     let waypointTimeout: NodeJS.Timeout
@@ -59,7 +58,7 @@ export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
         setPosition((currentPos) => {
           const newWaypoint = generateWaypoint(currentPos.x, currentPos.y, FISH_CONFIG.LEVY_MU)
           setTargetWaypoint(newWaypoint)
-          setMovementProgress(0)
+          // reset progress (no state needed)
 
           // Update facing direction based on waypoint direction
           if (newWaypoint.x > currentPos.x) {
@@ -88,16 +87,10 @@ export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
 
   useEffect(() => {
     const animationInterval = setInterval(() => {
-      setMovementProgress((prev) => {
-        const newProgress = Math.min(prev + FISH_CONFIG.MOVEMENT_SPEED, 1)
-
-        setPosition((currentPos) => ({
-          x: lerp(currentPos.x, targetWaypoint.x, FISH_CONFIG.MOVEMENT_SPEED),
-          y: lerp(currentPos.y, targetWaypoint.y, FISH_CONFIG.MOVEMENT_SPEED),
-        }))
-
-        return newProgress
-      })
+      setPosition((currentPos) => ({
+        x: lerp(currentPos.x, targetWaypoint.x, FISH_CONFIG.MOVEMENT_SPEED),
+        y: lerp(currentPos.y, targetWaypoint.y, FISH_CONFIG.MOVEMENT_SPEED),
+      }))
     }, 1000 / FISH_CONFIG.ANIMATION_FPS) // Using config FPS
 
     return () => clearInterval(animationInterval)
@@ -121,6 +114,7 @@ export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
         left: `${position.x}%`,
         top: `${position.y}%`,
         zIndex: 10,
+        willChange: "left, top, transform",
       }}
       onClick={onFeed}
     >
@@ -152,3 +146,13 @@ export function Fish({ fish, onFeed, isBeingFed }: FishProps) {
     </div>
   )
 }
+
+export const Fish = memo(FishComponent, (prev, next) => {
+  // Ignore function identity for onFeed; compare only fields that affect visuals
+  return (
+    prev.isBeingFed === next.isBeingFed &&
+    prev.fish.id === next.fish.id &&
+    prev.fish.type === next.fish.type &&
+    prev.fish.hunger === next.fish.hunger
+  )
+})

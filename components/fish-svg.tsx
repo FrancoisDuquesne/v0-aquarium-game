@@ -1,4 +1,5 @@
 import type React from "react"
+import { memo } from "react"
 interface FishSVGProps {
   type: string
   width?: number
@@ -7,7 +8,7 @@ interface FishSVGProps {
   className?: string
 }
 
-export function FishSVG({ type, width, height, facingRight = true, className = "drop-shadow-lg" }: FishSVGProps) {
+export const FishSVG = memo(function FishSVG({ type, width, height, facingRight = true, className = "drop-shadow-lg" }: FishSVGProps) {
   const getBaseSVG = (type: string, viewBox: string, content: React.ReactNode) => (
     <svg
       width={width}
@@ -15,6 +16,7 @@ export function FishSVG({ type, width, height, facingRight = true, className = "
       viewBox={viewBox}
       className={className}
       style={{ transform: `scaleX(${facingRight ? 1 : -1})` }}
+      pointerEvents="none"
     >
       {content}
     </svg>
@@ -109,7 +111,83 @@ export function FishSVG({ type, width, height, facingRight = true, className = "
         </>,
       )
 
+    case "betta":
+      return getBaseSVG(
+        "betta",
+        "0 0 36 26",
+        <>
+          <ellipse cx="18" cy="13" rx="10" ry="6" fill="#9b1b30" />
+          <path d="M10 13 L2 7 L6 13 L2 19 Z" fill="#c53030" />
+          <path d="M24 6 L28 4 L26 10 Z" fill="#e53e3e" />
+          <path d="M24 20 L28 22 L26 16 Z" fill="#e53e3e" />
+          <circle cx="24" cy="10" r="1.5" fill="#000" />
+        </>,
+      )
+
+    case "cherry-barb":
+      return getBaseSVG(
+        "cherry-barb",
+        "0 0 30 18",
+        <>
+          <ellipse cx="16" cy="9" rx="10" ry="5" fill="#dc2626" />
+          <path d="M6 9 L1 6 L3 9 L1 12 Z" fill="#b91c1c" />
+          <path d="M10 8 L22 8" stroke="#7f1d1d" strokeWidth="1" />
+          <circle cx="22" cy="7" r="1" fill="#000" />
+        </>,
+      )
+
+    case "guppy":
+      return getBaseSVG(
+        "guppy",
+        "0 0 30 18",
+        <>
+          <ellipse cx="16" cy="9" rx="9" ry="5" fill="#60a5fa" />
+          <path d="M8 9 L2 4 L5 9 L2 14 Z" fill="#3b82f6" />
+          <path d="M11 6 L21 6" stroke="#1d4ed8" strokeWidth="1" />
+          <circle cx="21" cy="7" r="1" fill="#000" />
+        </>,
+      )
+
+    case "pearl-gourami":
+      return getBaseSVG(
+        "pearl-gourami",
+        "0 0 48 30",
+        <>
+          <ellipse cx="26" cy="15" rx="15" ry="8" fill="#93c5fd" />
+          <circle cx="20" cy="12" r="1" fill="#000" />
+          <path d="M11 15 L4 10 L8 15 L4 20 Z" fill="#60a5fa" />
+          <circle cx="22" cy="14" r="0.8" fill="#e5e7eb" />
+          <circle cx="24" cy="16" r="0.8" fill="#e5e7eb" />
+          <circle cx="28" cy="14" r="0.8" fill="#e5e7eb" />
+        </>,
+      )
+
+    case "tiger-barb":
+      return getBaseSVG(
+        "tiger-barb",
+        "0 0 32 20",
+        <>
+          <ellipse cx="18" cy="10" rx="11" ry="6" fill="#f59e0b" />
+          <path d="M8 10 L2 6 L4 10 L2 14 Z" fill="#ea580c" />
+          <path d="M12 5 L12 15 M16 4 L16 16 M20 5 L20 15" stroke="#1f2937" strokeWidth="1.2" opacity="0.8" />
+          <circle cx="24" cy="8" r="1.2" fill="#000" />
+        </>,
+      )
+
+    case "jewel-cichlid":
+      return getBaseSVG(
+        "jewel-cichlid",
+        "0 0 46 28",
+        <>
+          <ellipse cx="26" cy="14" rx="16" ry="8" fill="#ef4444" />
+          <path d="M12 14 L4 10 L8 14 L4 18 Z" fill="#dc2626" />
+          <circle cx="30" cy="11" r="1.5" fill="#000" />
+          <circle cx="24" cy="12" r="1" fill="#fde68a" />
+          <circle cx="28" cy="16" r="1" fill="#fde68a" />
+        </>,
+      )
+
     default:
       return <FishSVG type="goldfish" width={width} height={height} facingRight={facingRight} className={className} />
   }
-}
+})

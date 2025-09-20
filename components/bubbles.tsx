@@ -1,3 +1,5 @@
+import { memo } from "react"
+
 interface Bubble {
   id: number
   x: number
@@ -8,7 +10,7 @@ interface BubblesProps {
   bubbles: Bubble[]
 }
 
-export function Bubbles({ bubbles }: BubblesProps) {
+export const Bubbles = memo(function Bubbles({ bubbles }: BubblesProps) {
   return (
     <>
       {bubbles.map((bubble) => (
@@ -20,9 +22,10 @@ export function Bubbles({ bubbles }: BubblesProps) {
             animationDelay: `${bubble.delay}s`,
             animationDuration: "8s",
             zIndex: 1,
+            willChange: "transform, opacity",
           }}
         />
       ))}
     </>
   )
-}
+})

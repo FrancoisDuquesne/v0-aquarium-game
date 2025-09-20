@@ -1,11 +1,13 @@
 "use client"
 
+import { memo } from "react"
+
 interface AutoFeederProps {
   isActive: boolean
   onToggle: () => void
 }
 
-export function AutoFeeder({ isActive, onToggle }: AutoFeederProps) {
+export const AutoFeeder = memo(function AutoFeeder({ isActive, onToggle }: AutoFeederProps) {
   return (
     <div
       className="absolute top-[15%] right-[8%] cursor-pointer group"
@@ -54,4 +56,4 @@ export function AutoFeeder({ isActive, onToggle }: AutoFeederProps) {
       </div>
     </div>
   )
-}
+})

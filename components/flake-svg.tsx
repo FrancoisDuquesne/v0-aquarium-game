@@ -1,0 +1,30 @@
+import { memo } from "react"
+
+interface FlakeSVGProps {
+  width?: number
+  height?: number
+  className?: string
+}
+
+// A small, potato-chip-like flake shape with a subtle gradient and highlight
+export const FlakeSVG = memo(function FlakeSVG({ width = 14, height = 10, className = "" }: FlakeSVGProps) {
+  return (
+    <svg width={width} height={height} viewBox="0 0 28 20" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fbbf24" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M4 10 C4 4, 10 2, 16 4 C22 6, 26 10, 20 14 C14 18, 6 16, 4 10 Z"
+        fill="url(#g)"
+        stroke="#d97706"
+        strokeWidth="0.5"
+        opacity="0.95"
+      />
+      <path d="M8 7 C12 5, 18 6, 20 8" stroke="#fde68a" strokeWidth="1" opacity="0.5" />
+    </svg>
+  )
+})
+

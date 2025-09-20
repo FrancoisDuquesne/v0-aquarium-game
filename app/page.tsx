@@ -21,9 +21,13 @@ export default function AquariumGame() {
       lastFeedTime: 0,
       feedInterval: 30000, // 30 seconds
     },
+    tools: {
+      spoonOwned: false,
+    },
   })
 
   const [feedingFish, setFeedingFish] = useState<number | null>(null)
+  const [selectedTool, setSelectedTool] = useState<'flake' | 'spoon'>('flake')
 
   const getFishCoinRate = (fishType: string) => {
     const rates = {
@@ -50,6 +54,9 @@ export default function AquariumGame() {
           lastFeedTime: 0,
           feedInterval: 30000,
         }
+      }
+      if (!parsed.tools) {
+        parsed.tools = { spoonOwned: false }
       }
 
       const maxOfflineTime = 24 * 60 * 60 * 1000 // 24 hours
@@ -91,13 +98,17 @@ export default function AquariumGame() {
           coinsToAdd += getFishCoinRate(fish.type)
         })
 
+        const updatedFish = prev.fish
+          .map((fish) => ({
+            ...fish,
+            hunger: Math.max(0, fish.hunger - 0.5),
+          }))
+          .filter((f) => f.hunger > 0) // fish die if too hungry
+
         const newState = {
           ...prev,
           coins: prev.coins + Math.floor(coinsToAdd * 100) / 100,
-          fish: prev.fish.map((fish) => ({
-            ...fish,
-            hunger: Math.max(0, fish.hunger - 0.5),
-          })),
+          fish: updatedFish,
         }
 
         if (prev.autoFeeder?.owned && prev.autoFeeder?.active) {
@@ -118,15 +129,21 @@ export default function AquariumGame() {
     return () => clearInterval(interval)
   }, [])
 
-  const feedFish = (fishId: number) => {
+  const onFishFed = (fishId: number, amount: number) => {
     setFeedingFish(fishId)
     setTimeout(() => setFeedingFish(null), 800)
-
     setGameState((prev) => ({
       ...prev,
-      fish: prev.fish.map((fish) => (fish.id === fishId ? { ...fish, hunger: Math.min(100, fish.hunger + 20) } : fish)),
+      fish: prev.fish.map((fish) => (fish.id === fishId ? { ...fish, hunger: Math.min(100, fish.hunger + amount) } : fish)),
       lastFeedTime: Date.now(),
       hasEverFed: true,
+    }))
+  }
+
+  const onRemoveFish = (fishId: number) => {
+    setGameState((prev) => ({
+      ...prev,
+      fish: prev.fish.filter((f) => f.id !== fishId),
     }))
   }
 
@@ -164,6 +181,16 @@ export default function AquariumGame() {
     }
   }
 
+  const buySpoon = (cost: number) => {
+    if (gameState.coins >= cost && !gameState.tools?.spoonOwned) {
+      setGameState((prev) => ({
+        ...prev,
+        coins: prev.coins - cost,
+        tools: { ...prev.tools, spoonOwned: true },
+      }))
+    }
+  }
+
   const toggleAutoFeeder = () => {
     if (gameState.autoFeeder?.owned) {
       setGameState((prev) => ({
@@ -181,9 +208,10 @@ export default function AquariumGame() {
     <div className="h-screen w-screen relative overflow-hidden bg-gradient-to-b from-blue-400 via-blue-600 to-blue-900">
       <AquariumDisplay
         fish={gameState.fish}
-        onFeedFish={feedFish}
         feedingFish={feedingFish}
         autoFeeder={gameState.autoFeeder}
+        onFishFed={onFishFed}
+        selectedTool={selectedTool}
       />
       <GameUI
         coins={gameState.coins}
@@ -193,6 +221,12 @@ export default function AquariumGame() {
         autoFeeder={gameState.autoFeeder}
         onBuyAutoFeeder={buyAutoFeeder}
         onToggleAutoFeeder={toggleAutoFeeder}
+        tools={gameState.tools}
+        selectedTool={selectedTool}
+        onSelectTool={setSelectedTool}
+        onBuySpoon={buySpoon}
+        onFeedFishInInventory={onFishFed}
+        onRemoveFish={onRemoveFish}
       />
     </div>
   )
