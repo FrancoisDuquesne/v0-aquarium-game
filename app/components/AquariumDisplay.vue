@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const game = useGameStore();
-const router = useRouter();
 
 const container = ref<HTMLElement | null>(null);
 const size = ref({ w: 0, h: 0 });
@@ -25,22 +24,7 @@ const flakeEls = new Map<number, HTMLElement>();
 const flakes = new Map<number, Flake>();
 const lastHandledAutoFeed = ref<number | null>(null);
 
-function resolveBackgroundPath(path: string | null | undefined) {
-  const fallback = "/backgrounds/0.webp";
-  if (!path) return router.resolve({ path: fallback }).href;
-  let normalized = path;
-  if (!normalized.startsWith("/")) {
-    normalized = `/${normalized.replace(/^\/?/, "")}`;
-  }
-  if (normalized.startsWith("/images/background-")) {
-    normalized = normalized.replace("/images/background-", "/backgrounds/");
-  }
-  return router.resolve({ path: normalized }).href;
-}
-
-const resolvedBackground = computed(() =>
-  resolveBackgroundPath(game.background)
-);
+const backgroundImage = computed(() => game.background);
 
 const FLOOR_Y = 96;
 const SINK_SPEED_PER_S = 6;
@@ -51,7 +35,6 @@ const FEED_AMOUNT = 20;
 const MAX_FLAKES = 60;
 
 onMounted(() => {
-  game.load();
   const ro = new ResizeObserver(() => {
     if (!container.value) return;
     const r = container.value.getBoundingClientRect();
@@ -338,9 +321,9 @@ watch(
     class="absolute inset-0 overflow-hidden"
     @click="onClick">
     <img
-      :src="resolvedBackground"
+      :src="backgroundImage"
       alt="Aquarium background"
-      class="absolute inset-0 w-full h-full object-cover md:object-fill xl:object-cover"
+      class="absolute inset-0 w-full h-full object-cover md:object-fill xl:object-cover xl:object-bottom"
       aria-hidden="true" />
     <div
       class="absolute inset-0 bg-gradient-to-t from-blue-900/20 via-transparent to-cyan-100/10 pointer-events-none" />
