@@ -1,30 +1,23 @@
-# Aquarium game
+Nuxt 3 port (Nuxt UI + Pinia + Tailwind)
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+Commands
+- pnpm i (or npm i)
+- pnpm dev (or npm run dev) from the nuxt/ directory
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/francois-projects-eaed2b5f/v0-aquarium-game)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/5dbCkNKzh4D)
+Includes
+- @nuxt/ui for UI primitives (UButton, UBadge, UCard, UModal)
+- Pinia store for game state and actions (stores/game.ts)
+- TailwindCSS and existing animations (assets/css/main.css)
+- VueUse for interval ticking
+- Nuxt Image for background asset
 
-## Overview
+Ported Features
+- RAF-based movement with smoothed targets + arrival
+- Species-specific schooling (light), food flakes and spoon scatter
+- Inventory + Store tabbed modal with sorting and equipment
+- New species with simple SVGs and sizes
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+Notes
+- Background uses /public/images/coral-reef-bg.webp at repo root (served by Nuxt via public/). Copy images as needed.
+- Adjust movement constants in utils/fish-config.ts
 
-## Deployment
-
-Your project is live at:
-
-**[https://vercel.com/francois-projects-eaed2b5f/v0-aquarium-game](https://vercel.com/francois-projects-eaed2b5f/v0-aquarium-game)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.app/chat/projects/5dbCkNKzh4D](https://v0.app/chat/projects/5dbCkNKzh4D)**
-
-## How It Works
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
