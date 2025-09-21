@@ -385,7 +385,7 @@ export function AquariumDisplay({ fish, feedingFish, autoFeeder, onToggleAutoFee
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden" onClick={onContainerClick}>
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/images/coral-reef-bg-3.webp')" }} />
+      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/images/coral-reef-bg-2.webp')" }} />
 
       <div className="absolute inset-0 bg-gradient-to-t from-blue-900/20 via-transparent to-cyan-100/10" />
 
