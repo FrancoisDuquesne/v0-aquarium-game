@@ -71,16 +71,19 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
         <UBadge
           color="neutral"
           variant="subtle"
+          size="lg"
           :label="`💰 ${game.coins}`"
           class="shadow-xl" />
         <UBadge
           color="neutral"
           variant="subtle"
+          size="lg"
           :label="`🐟 ${game.fish.length}`"
           class="shadow-xl" />
         <UBadge
           color="neutral"
           variant="subtle"
+          size="lg"
           :label="`❤️ ${avg}%`"
           class="shadow-xl" />
       </div>
@@ -99,7 +102,6 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
         </UButtonGroup>
         <UButton
           v-if="game.autoFeeder.owned"
-          size="xs"
           class="w-fit shadow-xl"
           :variant="game.autoFeeder.active ? 'solid' : 'outline'"
           :color="game.autoFeeder.active ? 'success' : 'neutral'"

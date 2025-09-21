@@ -3,6 +3,7 @@ export default defineAppConfig({
     badge: {
       variants: {
         size: {
+          lg: { base: "rounded-xl" },
           md: { base: "rounded-xl" },
           sm: { base: "rounded-xl" },
         },
