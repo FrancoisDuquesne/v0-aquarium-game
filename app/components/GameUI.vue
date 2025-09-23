@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const game = useGameStore();
+const now = useNow({ interval: 1000 });
 const showModal = ref(false);
 const tabs = [
   {
@@ -51,6 +52,52 @@ function cycleTool() {
   }
 }
 
+const pendingDrops = computed(() => game.coinDrops.length);
+const collectorStats = computed(
+  () =>
+    COIN_COLLECTOR_LEVELS.find(
+      (entry) => entry.level === game.coinCollector.level
+    ) ?? COIN_COLLECTOR_LEVELS[0]
+);
+const nextCollector = computed(() =>
+  nextCollectorLevel(game.coinCollector.level)
+);
+const collectorCooldownMs = computed(() => {
+  const cooldown = collectorStats.value.cooldown;
+  if (!Number.isFinite(cooldown)) return Infinity;
+  const elapsed = now.value.getTime() - game.coinCollector.lastSweep;
+  return Math.max(0, cooldown - elapsed);
+});
+const collectorReady = computed(() => collectorCooldownMs.value <= 0);
+const collectorHasUpgrade = computed(() => game.coinCollector.level > 0);
+const collectorButtonLabel = computed(() =>
+  collectorReady.value
+    ? "🧺 Sweep drops"
+    : `🧺 ${Math.ceil(collectorCooldownMs.value / 1000)}s`
+);
+const canSweep = computed(() => collectorReady.value && pendingDrops.value > 0);
+
+const boostBadges = computed(
+  () =>
+    game.activeBoosts
+      .map((boost) => {
+        const remaining = Math.max(
+          0,
+          Math.ceil((boost.expiresAt - now.value.getTime()) / 1000)
+        );
+        if (remaining <= 0) return null;
+        return {
+          id: boost.id,
+          label: `${boost.label} · ${remaining}s`,
+        };
+      })
+      .filter(Boolean) as { id: string; label: string }[]
+);
+
+function sweepCollector() {
+  game.manualCollectorSweep();
+}
+
 function openToolModal() {
   initialTab.value = "inventory";
   initialInventoryView.value = "tools";
@@ -66,35 +113,33 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
 
 <template>
   <div>
-    <div class="absolute top-2 left-2 flex z-20 flex-col gap-2">
-      <div class="flex flex-wrap gap-2">
-        <UBadge
-          color="neutral"
-          variant="subtle"
-          size="lg"
-          :label="`💰 ${game.coins}`"
-          class="shadow-xl" />
-        <UBadge
-          color="neutral"
-          variant="subtle"
-          size="lg"
-          :label="`🐟 ${game.fish.length}`"
-          class="shadow-xl" />
-        <UBadge
-          color="neutral"
-          variant="subtle"
-          size="lg"
-          :label="`❤️ ${avg}%`"
-          class="shadow-xl" />
+    <div class="absolute top-0 left-0 p-2 flex z-20 flex-col gap-2">
+      <div
+        class="flex items-center gap-2 sm:gap-4 bg-default/80 rounded-2xl shadow-xl w-fit px-2 py-1 flex-wrap">
+        <span class="text-sm font-semibold">💰 {{ game.coins }}</span>
+        <span class="text-sm font-semibold">🐟 {{ game.fish.length }}</span>
+        <span class="text-sm font-semibold">❤️ {{ avg }}</span>
+        <span class="text-sm font-semibold text-success">
+          x{{ game.coinMultiplier.toFixed(2) }}%
+        </span>
+        <div v-if="boostBadges.length" class="flex flex-wrap gap-2">
+          <UBadge
+            v-for="badge in boostBadges"
+            :key="badge.id"
+            size="sm"
+            :label="`✨ ${badge.label}`"
+            class="shadow" />
+        </div>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="flex gap-2">
         <UButtonGroup size="xs" class="w-fit shadow-xl rounded-xl">
           <UButton
-            color="warning"
+            color="neutral"
+            variant="soft"
             :label="activeToolLabel"
             @click="cycleTool" />
           <UButton
-            color="warning"
+            color="neutral"
             variant="soft"
             icon="i-mdi-chevron-down"
             aria-label="Open tool chooser"
@@ -103,10 +148,35 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
         <UButton
           v-if="game.autoFeeder.owned"
           class="w-fit shadow-xl"
+          size="xs"
           :variant="game.autoFeeder.active ? 'solid' : 'outline'"
           :color="game.autoFeeder.active ? 'success' : 'neutral'"
           :label="game.autoFeeder.active ? '🤖 On' : '🤖 Off'"
           @click="game.toggleAutoFeeder()" />
+        <div
+          v-if="collectorHasUpgrade"
+          class="flex items-center gap-2 flex-wrap">
+          <UButton
+            class="w-fit shadow-xl"
+            size="xs"
+            color="warning"
+            :disabled="!canSweep"
+            :label="collectorButtonLabel"
+            @click="sweepCollector" />
+          <!-- <UBadge
+            color="warning"
+            variant="subtle"
+            size="xs"
+            :label="`Lvl ${game.coinCollector.level}: ${collectorStats.label}`"
+            class="shadow-xl" />
+          <UBadge
+            v-if="nextCollector"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            :label="`Next: ${nextCollector.label} · ${nextCollector.cost} coins`"
+            class="shadow" /> -->
+        </div>
       </div>
     </div>
 

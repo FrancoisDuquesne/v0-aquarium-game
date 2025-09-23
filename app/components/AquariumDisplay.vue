@@ -23,8 +23,76 @@ const flakeIds = ref<number[]>([]);
 const flakeEls = new Map<number, HTMLElement>();
 const flakes = new Map<number, Flake>();
 const lastHandledAutoFeed = ref<number | null>(null);
+const dropAnchors = new Map<
+  number,
+  { left: number; startTop: number; endTop: number; duration: number }
+>();
 
 const backgroundImage = computed(() => game.background);
+
+type CoinDropView = {
+  id: number;
+  value: number;
+  x: number;
+  y: number;
+  spawnY: number;
+  fallDurationMs: number;
+  fishId: number | null;
+  type: "coin" | "stack" | "bill";
+  source: string;
+};
+
+const DECORATION_PRESETS: Record<
+  string,
+  { label: string; left: string; bottom: string; scale: number; emoji: string }
+> = {
+  "coral-arch": {
+    label: "Coral Arch",
+    left: "20%",
+    bottom: "8%",
+    scale: 1.1,
+    emoji: "🪸",
+  },
+  "kelp-forest": {
+    label: "Kelp Forest",
+    left: "80%",
+    bottom: "7%",
+    scale: 1.2,
+    emoji: "🌿",
+  },
+  "bubble-column": {
+    label: "Bubble Column",
+    left: "50%",
+    bottom: "14%",
+    scale: 1.05,
+    emoji: "🫧",
+  },
+};
+
+const placedDecorations = computed(
+  () =>
+    game.decorations
+      .map((id) => {
+        const preset = DECORATION_PRESETS[id];
+        if (!preset) return null;
+        return {
+          id,
+          label: preset.label,
+          emoji: preset.emoji,
+          style: {
+            left: preset.left,
+            bottom: preset.bottom,
+            transform: `translate(-50%, 0) scale(${preset.scale})`,
+          },
+        };
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      label: string;
+      emoji: string;
+      style: Record<string, string>;
+    }>
+);
 
 const FLOOR_Y = 96;
 const SINK_SPEED_PER_S = 6;
@@ -33,6 +101,13 @@ const DETECT_RADIUS = 16;
 const EAT_RADIUS = 3;
 const FEED_AMOUNT = 20;
 const MAX_FLAKES = 60;
+const COIN_FLOOR_Y = 94;
+const COIN_FALL_MIN_MS = 900;
+const COIN_FALL_PER_PCT = 22;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 onMounted(() => {
   const ro = new ResizeObserver(() => {
@@ -294,6 +369,54 @@ function dispenseAutoFeederFlakes(quantity = 8) {
   }
 }
 
+watch(
+  () => game.coinDrops.map((drop) => drop.id),
+  (ids) => {
+    const keep = new Set(ids);
+    Array.from(dropAnchors.keys()).forEach((id) => {
+      if (!keep.has(id)) dropAnchors.delete(id);
+    });
+  }
+);
+
+function coinStyle(drop: CoinDropView) {
+  let anchor = dropAnchors.get(drop.id);
+  if (!anchor) {
+    const fishPos = drop.fishId != null ? positions.get(drop.fishId) : undefined;
+    const baseX = typeof fishPos?.x === "number" ? fishPos.x : drop.x;
+    const baseY = typeof fishPos?.y === "number" ? fishPos.y : drop.spawnY ?? drop.y;
+    const startTop = clamp(baseY, 10, 88);
+    const endTop = clamp(Math.max(drop.y, startTop + Math.random() * 8), startTop, COIN_FLOOR_Y);
+    const left = clamp(baseX + (Math.random() - 0.5) * 6, 6, 94);
+    const fallDistance = Math.max(0, endTop - startTop);
+    const duration = Math.max(
+      450,
+      Math.round(
+        drop.fallDurationMs || COIN_FALL_MIN_MS + fallDistance * COIN_FALL_PER_PCT
+      )
+    );
+    anchor = { left, startTop, endTop, duration };
+    dropAnchors.set(drop.id, anchor);
+  }
+  return {
+    left: `${anchor.left}%`,
+    top: `${anchor.endTop}%`,
+    "--drop-start-top": `${anchor.startTop}%`,
+    "--drop-end-top": `${anchor.endTop}%`,
+    "--drop-fall-duration": `${anchor.duration}ms`,
+  };
+}
+
+function dropIcon(type: CoinDropView["type"]) {
+  if (type === "bill") return "💵";
+  if (type === "stack") return "💰";
+  return "🪙";
+}
+
+function collectDrop(id: number) {
+  game.collectCoinDrop(id);
+}
+
 function onClick(e: MouseEvent) {
   if (game.selectedTool === "spoon") {
     const cx = e.clientX,
@@ -352,9 +475,79 @@ watch(
       <FlakeSvg />
     </div>
 
+    <TransitionGroup tag="div" name="coin-drop" class="absolute inset-0">
+      <button
+        v-for="drop in game.coinDrops as CoinDropView[]"
+        :key="drop.id"
+        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow-lg transition focus:outline-none focus:ring-2 focus:ring-yellow-200/60"
+        :class="{
+          'bg-emerald-300/95 text-emerald-950': drop.type === 'bill',
+          'bg-yellow-200/95 text-amber-900': drop.type === 'coin',
+          'bg-amber-300/95 text-amber-950': drop.type === 'stack',
+        }"
+        :style="coinStyle(drop)"
+        :title="`Collect ${drop.value} coins`"
+        @click.stop="collectDrop(drop.id)">
+        <span class="text-base leading-none">{{ dropIcon(drop.type) }}</span>
+        <span>{{ drop.value }}</span>
+      </button>
+    </TransitionGroup>
+
+    <div
+      v-for="decor in placedDecorations"
+      :key="decor.id"
+      class="absolute pointer-events-none select-none drop-shadow-lg"
+      :style="decor.style"
+      :aria-label="decor.label"
+      :title="decor.label">
+      <span class="text-5xl md:text-6xl">{{ decor.emoji }}</span>
+    </div>
+
     <BubblesLayer />
     <div
       class="absolute inset-0 bg-gradient-to-br from-cyan-100/3 via-transparent to-blue-100/3 pointer-events-none animate-pulse"
       style="animation-duration: 4s" />
   </div>
 </template>
+
+<style scoped>
+.coin-drop {
+  --drop-start-top: 90%;
+  --drop-end-top: 94%;
+  --drop-fall-duration: 1200ms;
+  animation-name: coin-fall;
+  animation-duration: var(--drop-fall-duration);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: forwards;
+}
+
+.coin-drop-enter-active,
+.coin-drop-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.coin-drop-enter-from,
+.coin-drop-leave-to {
+  opacity: 0;
+}
+
+.coin-drop-leave-active {
+  pointer-events: none;
+}
+
+@keyframes coin-fall {
+  from {
+    top: var(--drop-start-top);
+  }
+  to {
+    top: var(--drop-end-top);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coin-drop {
+    animation-duration: 1ms;
+    animation-timing-function: linear;
+  }
+}
+</style>
