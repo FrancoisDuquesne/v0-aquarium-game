@@ -40,8 +40,6 @@ const DEFAULT_AUTO_FEEDER: AutoFeeder = {
 };
 
 const DEFAULT_TOOLS: Tools = { spoonOwned: false };
-const DEFAULT_BACKGROUND = "/backgrounds/0.webp";
-
 function normalizeBackgroundPath(path: unknown): string {
   if (typeof path !== "string" || !path.length) return DEFAULT_BACKGROUND;
   let normalized = path;

@@ -4,11 +4,6 @@ import { useGameStore } from "~/stores/game";
 const game = useGameStore();
 const router = useRouter();
 
-const { data: backgroundPaths, pending } = await useAsyncData(
-  "backgrounds",
-  () => $fetch<string[]>("/api/backgrounds")
-);
-
 function toLabel(path: string) {
   const filename = path.split("/").pop() ?? "";
   const base = filename.replace(/\.[^.]+$/, "");
@@ -18,13 +13,11 @@ function toLabel(path: string) {
 }
 
 const aquariumBackgrounds = computed(() =>
-  (backgroundPaths.value ?? [])
-    .map((src) => ({
-      src,
-      label: toLabel(src),
-      href: router.resolve({ path: src }).href,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label))
+  AVAILABLE_BACKGROUNDS.map((src) => ({
+    src,
+    label: toLabel(src),
+    href: router.resolve({ path: src }).href,
+  })).sort((a, b) => a.label.localeCompare(b.label))
 );
 
 const selectedBackground = computed(() => game.background);
@@ -58,11 +51,8 @@ const selectedBackground = computed(() => game.background);
             label="Active" />
         </UCard>
       </div>
-      <p
-        v-if="!pending && !aquariumBackgrounds.length"
-        class="text-sm text-muted">
-        Drop image files into <code>/public/backgrounds/</code> and they will
-        appear here automatically.
+      <p v-if="!aquariumBackgrounds.length" class="text-sm text-muted">
+        Update <code>config/backgrounds.ts</code> to add more background images.
       </p>
     </div>
   </div>
