@@ -139,6 +139,7 @@ function tick(ts: number) {
 
   // Fish steering
   positions.forEach((pos, id) => {
+    let chasingSinkingFlake = false;
     // Waypoints
     const dueAt = nextWaypointAt.get(id) || now;
     if (now >= dueAt) {
@@ -175,6 +176,7 @@ function tick(ts: number) {
     if (nearest && nearestDist <= DETECT_RADIUS) {
       base = { x: nearest.x, y: nearest.y };
       targets.set(id, base);
+      chasingSinkingFlake = nearest.state === "sinking";
       if (nearestDist <= EAT_RADIUS) {
         game.feedFish(id, FEED_AMOUNT);
         flakes.delete(nearest.id);
@@ -196,9 +198,13 @@ function tick(ts: number) {
     const dx = softX - pos.x,
       dy = softY - pos.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const maxSpeed = 14,
+    const maxSpeed = 16,
       slowRadius = 8;
-    const desiredSpeed = Math.min(maxSpeed, maxSpeed * (dist / slowRadius));
+    const minSpeed = chasingSinkingFlake ? maxSpeed * 0.6 : 0;
+    const desiredSpeed = Math.min(
+      maxSpeed,
+      Math.max(minSpeed, maxSpeed * (dist / slowRadius))
+    );
     let ax = (dx / dist) * desiredSpeed - vel.vx;
     let ay = (dy / dist) * desiredSpeed - vel.vy;
     const maxAcc = 50 * dtSec;
