@@ -1,17 +1,4 @@
 <script setup lang="ts">
-import {
-  DECOR_ITEMS,
-  FISH_SHOP_ITEMS,
-  POWER_UP_ITEMS,
-  TANK_UPGRADES,
-  type UpgradeId,
-} from "~/config/shop";
-import {
-  coinsPerMinuteFor,
-  COIN_COLLECTOR_LEVELS,
-  nextCollectorLevel,
-} from "~/utils/economy";
-
 const game = useGameStore();
 const shopItems = FISH_SHOP_ITEMS;
 const upgradeItems = TANK_UPGRADES;
@@ -24,7 +11,9 @@ const collectorStats = computed(
       (entry) => entry.level === game.coinCollector.level
     ) ?? COIN_COLLECTOR_LEVELS[0]
 );
-const nextCollector = computed(() => nextCollectorLevel(game.coinCollector.level));
+const nextCollector = computed(() =>
+  nextCollectorLevel(game.coinCollector.level)
+);
 const collectorDescription = computed(() => {
   const stats = collectorStats.value;
   if (!Number.isFinite(stats.cooldown)) {
@@ -179,7 +168,9 @@ function activatePowerUp(id: string, cost: number) {
               </div>
               <div class="min-w-0 flex-1">
                 <div class="text-xs truncate">Coin Collector</div>
-                <div class="text-[10px] text-muted">{{ collectorStats.label }}</div>
+                <div class="text-[10px] text-muted">
+                  {{ collectorStats.label }}
+                </div>
               </div>
             </div>
             <UButton
@@ -270,7 +261,9 @@ function activatePowerUp(id: string, cost: number) {
               :disabled="game.coins < item.cost"
               @click="buyUpgradeItem(item.id, item.cost)" />
           </div>
-          <p class="text-[11px] text-muted mt-2 leading-snug">{{ item.desc }}</p>
+          <p class="text-[11px] text-muted mt-2 leading-snug">
+            {{ item.desc }}
+          </p>
           <p class="text-[10px] text-emerald-300 mt-1">{{ item.effect }}</p>
         </UCard>
       </div>
@@ -307,7 +300,9 @@ function activatePowerUp(id: string, cost: number) {
               :disabled="game.coins < item.cost"
               @click="buyDecorItem(item.id, item.cost)" />
           </div>
-          <p class="text-[11px] text-muted mt-2 leading-snug">{{ item.desc }}</p>
+          <p class="text-[11px] text-muted mt-2 leading-snug">
+            {{ item.desc }}
+          </p>
         </UCard>
       </div>
     </div>
@@ -343,8 +338,12 @@ function activatePowerUp(id: string, cost: number) {
               :disabled="game.coins < item.cost"
               @click="activatePowerUp(item.id, item.cost)" />
           </div>
-          <p class="text-[11px] text-muted mt-2 leading-snug">{{ item.desc }}</p>
-          <p class="text-[10px] text-emerald-300 mt-1">Duration: {{ item.duration }}</p>
+          <p class="text-[11px] text-muted mt-2 leading-snug">
+            {{ item.desc }}
+          </p>
+          <p class="text-[10px] text-emerald-300 mt-1">
+            Duration: {{ item.duration }}
+          </p>
         </UCard>
       </div>
     </div>

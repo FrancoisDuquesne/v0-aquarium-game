@@ -28,6 +28,11 @@ const dropAnchors = new Map<
   { left: number; startTop: number; endTop: number; duration: number }
 >();
 
+const activeFishIds = new Set<number>();
+const fishHunger = new Map<number, number>();
+const flakesToRemove: number[] = [];
+let frameHandle: number | null = null;
+
 const backgroundImage = computed(() => game.background);
 
 type CoinDropView = {
@@ -40,33 +45,6 @@ type CoinDropView = {
   fishId: number | null;
   type: "coin" | "stack" | "bill";
   source: string;
-};
-
-const DECORATION_PRESETS: Record<
-  string,
-  { label: string; left: string; bottom: string; scale: number; emoji: string }
-> = {
-  "coral-arch": {
-    label: "Coral Arch",
-    left: "20%",
-    bottom: "8%",
-    scale: 1.1,
-    emoji: "🪸",
-  },
-  "kelp-forest": {
-    label: "Kelp Forest",
-    left: "80%",
-    bottom: "7%",
-    scale: 1.2,
-    emoji: "🌿",
-  },
-  "bubble-column": {
-    label: "Bubble Column",
-    left: "50%",
-    bottom: "14%",
-    scale: 1.05,
-    emoji: "🫧",
-  },
 };
 
 const placedDecorations = computed(
@@ -94,17 +72,6 @@ const placedDecorations = computed(
     }>
 );
 
-const FLOOR_Y = 96;
-const SINK_SPEED_PER_S = 6;
-const REST_DURATION_MS = 5000;
-const DETECT_RADIUS = 16;
-const EAT_RADIUS = 3;
-const FEED_AMOUNT = 20;
-const MAX_FLAKES = 60;
-const COIN_FLOOR_Y = 94;
-const COIN_FALL_MIN_MS = 900;
-const COIN_FALL_PER_PCT = 22;
-
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -122,10 +89,16 @@ onMounted(() => {
   }
   const loop = (ts: number) => {
     tick(ts);
-    requestAnimationFrame(loop);
+    frameHandle = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
-  onBeforeUnmount(() => ro.disconnect());
+  frameHandle = requestAnimationFrame(loop);
+  onBeforeUnmount(() => {
+    ro.disconnect();
+    if (frameHandle != null) {
+      cancelAnimationFrame(frameHandle);
+      frameHandle = null;
+    }
+  });
 });
 
 function pctToPx(xPct: number, yPct: number) {
@@ -145,13 +118,20 @@ let lastTs = performance.now();
 function tick(ts: number) {
   const dt = ts - lastTs;
   lastTs = ts;
+
+  if (typeof document !== "undefined" && document.hidden) {
+    return;
+  }
+
   const dtSec = Math.max(0.001, dt / 1000);
   const now = ts;
 
-  // Ensure maps for current fish list
-  const ids = new Set<number>();
+  activeFishIds.clear();
+  fishHunger.clear();
+
   game.fish.forEach((f) => {
-    ids.add(f.id);
+    activeFishIds.add(f.id);
+    fishHunger.set(f.id, f.hunger);
     if (!positions.has(f.id)) positions.set(f.id, { x: f.x, y: f.y });
     if (!velocities.has(f.id))
       velocities.set(f.id, {
@@ -171,8 +151,9 @@ function tick(ts: number) {
       );
     if (!faces.has(f.id)) faces.set(f.id, 1);
   });
-  Array.from(positions.keys()).forEach((id) => {
-    if (!ids.has(id)) {
+
+  for (const id of positions.keys()) {
+    if (!activeFishIds.has(id)) {
       positions.delete(id);
       velocities.delete(id);
       targets.delete(id);
@@ -181,10 +162,9 @@ function tick(ts: number) {
       faces.delete(id);
       fishEls.delete(id);
     }
-  });
+  }
 
-  // Flakes: sink and cull
-  const toRemove: number[] = [];
+  flakesToRemove.length = 0;
   flakes.forEach((flake, id) => {
     if (flake.state === "sinking") {
       flake.y = Math.min(FLOOR_Y, flake.y + (SINK_SPEED_PER_S * dt) / 1000);
@@ -196,26 +176,27 @@ function tick(ts: number) {
       flake.state === "resting" &&
       flake.restStart &&
       now - flake.restStart >= REST_DURATION_MS
-    )
-      toRemove.push(id);
+    ) {
+      flakesToRemove.push(id);
+    }
+
     const el = flakeEls.get(id);
     if (el) {
       const { x, y } = pctToPx(flake.x, flake.y);
       el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
   });
-  if (toRemove.length) {
-    toRemove.forEach((id) => {
+
+  if (flakesToRemove.length) {
+    flakesToRemove.forEach((id) => {
       flakes.delete(id);
       flakeEls.delete(id);
     });
-    flakeIds.value = flakeIds.value.filter((i) => !toRemove.includes(i));
+    flakeIds.value = flakeIds.value.filter((i) => !flakesToRemove.includes(i));
   }
 
-  // Fish steering
   positions.forEach((pos, id) => {
     let chasingSinkingFlake = false;
-    // Waypoints
     const dueAt = nextWaypointAt.get(id) || now;
     if (now >= dueAt) {
       const next = generateWaypoint(pos.x, pos.y, FISH_CONFIG.LEVY_MU);
@@ -229,25 +210,25 @@ function tick(ts: number) {
       faces.set(id, next.x > pos.x ? 1 : -1);
     }
 
-    // Base target
     let base = targets.get(id) || pos;
 
-    // Flake attraction
     let nearest: Flake | null = null;
     let nearestDist = Infinity;
-    const fishState = game.fish.find((f) => f.id === id);
-    const isHungry = !fishState || fishState.hunger < 100;
+    const hunger = fishHunger.get(id) ?? 100;
+    const isHungry = hunger < 100;
+
     if (isHungry && flakes.size) {
       flakes.forEach((fl) => {
-        const dx = fl.x - pos.x,
-          dy = fl.y - pos.y,
-          d = Math.hypot(dx, dy);
+        const dx = fl.x - pos.x;
+        const dy = fl.y - pos.y;
+        const d = Math.hypot(dx, dy);
         if (d < nearestDist) {
           nearest = fl;
           nearestDist = d;
         }
       });
     }
+
     if (nearest && nearestDist <= DETECT_RADIUS) {
       base = { x: nearest.x, y: nearest.y };
       targets.set(id, base);
@@ -260,7 +241,6 @@ function tick(ts: number) {
       }
     }
 
-    // Smooth target
     const soft = softTargets.get(id) || { x: pos.x, y: pos.y };
     const tau = 0.4;
     const alpha = 1 - Math.exp(-dtSec / tau);
@@ -268,13 +248,12 @@ function tick(ts: number) {
     const softY = soft.y + (base.y - soft.y) * alpha;
     softTargets.set(id, { x: softX, y: softY });
 
-    // Arrival
     const vel = velocities.get(id) || { vx: 0, vy: 0 };
-    const dx = softX - pos.x,
-      dy = softY - pos.y;
+    const dx = softX - pos.x;
+    const dy = softY - pos.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const maxSpeed = 16,
-      slowRadius = 8;
+    const maxSpeed = 16;
+    const slowRadius = 8;
     const minSpeed = chasingSinkingFlake ? maxSpeed * 0.6 : 0;
     const desiredSpeed = Math.min(
       maxSpeed,
@@ -361,10 +340,10 @@ function addFlakeAt(clientX: number, clientY: number) {
   addFlakeAtPercent(xPct, yPct);
 }
 
-function dispenseAutoFeederFlakes(quantity = 8) {
+function dispenseAutoFeederFlakes(quantity = AUTO_FEEDER_DISPENSE_COUNT) {
   for (let i = 0; i < quantity; i++) {
     const xPct = Math.random() * 100;
-    const yPct = Math.random() * 6;
+    const yPct = Math.random() * AUTO_FEEDER_DISPENSE_TOP_RANGE;
     addFlakeAtPercent(xPct, yPct);
   }
 }
@@ -382,17 +361,24 @@ watch(
 function coinStyle(drop: CoinDropView) {
   let anchor = dropAnchors.get(drop.id);
   if (!anchor) {
-    const fishPos = drop.fishId != null ? positions.get(drop.fishId) : undefined;
+    const fishPos =
+      drop.fishId != null ? positions.get(drop.fishId) : undefined;
     const baseX = typeof fishPos?.x === "number" ? fishPos.x : drop.x;
-    const baseY = typeof fishPos?.y === "number" ? fishPos.y : drop.spawnY ?? drop.y;
+    const baseY =
+      typeof fishPos?.y === "number" ? fishPos.y : drop.spawnY ?? drop.y;
     const startTop = clamp(baseY, 10, 88);
-    const endTop = clamp(Math.max(drop.y, startTop + Math.random() * 8), startTop, COIN_FLOOR_Y);
+    const endTop = clamp(
+      Math.max(drop.y, startTop + Math.random() * 8),
+      startTop,
+      COIN_FLOOR_Y
+    );
     const left = clamp(baseX + (Math.random() - 0.5) * 6, 6, 94);
     const fallDistance = Math.max(0, endTop - startTop);
     const duration = Math.max(
       450,
       Math.round(
-        drop.fallDurationMs || COIN_FALL_MIN_MS + fallDistance * COIN_FALL_PER_PCT
+        drop.fallDurationMs ||
+          COIN_FALL_MIN_MS + fallDistance * COIN_FALL_PER_PCT
       )
     );
     anchor = { left, startTop, endTop, duration };
@@ -421,9 +407,9 @@ function onClick(e: MouseEvent) {
   if (game.selectedTool === "spoon") {
     const cx = e.clientX,
       cy = e.clientY;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < SPOON_SCATTER_COUNT; i++) {
       const ang = Math.random() * Math.PI * 2;
-      const r = Math.random() * 24;
+      const r = Math.random() * SPOON_SCATTER_RADIUS;
       addFlakeAt(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
     }
   } else addFlakeAt(e.clientX, e.clientY);
@@ -479,12 +465,7 @@ watch(
       <button
         v-for="drop in game.coinDrops as CoinDropView[]"
         :key="drop.id"
-        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow-lg transition focus:outline-none focus:ring-2 focus:ring-yellow-200/60"
-        :class="{
-          'bg-emerald-300/95 text-emerald-950': drop.type === 'bill',
-          'bg-yellow-200/95 text-amber-900': drop.type === 'coin',
-          'bg-amber-300/95 text-amber-950': drop.type === 'stack',
-        }"
+        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-yellow-200/60"
         :style="coinStyle(drop)"
         :title="`Collect ${drop.value} coins`"
         @click.stop="collectDrop(drop.id)">

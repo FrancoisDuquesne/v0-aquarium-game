@@ -1,11 +1,4 @@
 import { defineStore } from "pinia";
-import {
-  coinRateFor,
-  COIN_COLLECTOR_LEVELS,
-  OFFLINE_INTERVAL_MS,
-  OFFLINE_MAX_MS,
-  nextCollectorLevel,
-} from "~/utils/economy";
 
 type ToolType = "flake" | "spoon";
 
@@ -79,50 +72,7 @@ interface GameState {
   activeBoosts: ActiveBoost[];
 }
 
-const DEFAULT_AUTO_FEEDER: AutoFeeder = {
-  owned: false,
-  active: false,
-  lastFeedTime: 0,
-  feedInterval: 30_000,
-};
-
-const DEFAULT_TOOLS: Tools = { spoonOwned: false };
-const DEFAULT_COIN_COLLECTOR: CoinCollectorState = { level: 0, lastSweep: 0 };
-const DEFAULT_UPGRADES: UpgradesState = {
-  gourmetFeed: false,
-  luxeDecor: false,
-  clarityFilters: false,
-};
-const DEFAULT_DECORATIONS: string[] = [];
-const DEFAULT_BOOSTS: ActiveBoost[] = [];
-
 const dropTimers = new Set<number>();
-
-const DROP_MAX = 36;
-const DROP_FLOOR_Y = 94;
-const DROP_FALL_DURATION_MIN = 20_000;
-const DROP_FALL_DURATION_PER_PCT = 22;
-const BASE_DROP_LIFETIME = 22_000;
-const CARE_STREAK_MAX = 5;
-const BASE_HUNGER_DECAY = 0.5;
-const CARE_THRESHOLD = 60;
-const HAPPY_THRESHOLD = 80;
-
-const BOOST_DEFINITIONS: Record<
-  string,
-  { label: string; durationMs: number; multiplier: number }
-> = {
-  "treasure-frenzy": {
-    label: "Treasure Frenzy",
-    durationMs: 120_000,
-    multiplier: 1.75,
-  },
-  "lunar-tide": {
-    label: "Lunar Tide", // gentle bonus for long sessions
-    durationMs: 300_000,
-    multiplier: 1.35,
-  },
-};
 
 function normalizeBackgroundPath(path: unknown): string {
   if (typeof path !== "string" || !path.length) return DEFAULT_BACKGROUND;
@@ -271,12 +221,19 @@ export const useGameStore = defineStore("game", () => {
   });
   const upgrades = reactive<UpgradesState>({ ...DEFAULT_UPGRADES });
   const decorations = ref<string[]>([...DEFAULT_DECORATIONS]);
-  const activeBoosts = ref<ActiveBoost[]>([...DEFAULT_BOOSTS]);
+  const activeBoosts = ref<ActiveBoost[]>(
+    DEFAULT_BOOSTS.map((boost) => ({ ...boost })) as ActiveBoost[]
+  );
 
   const hungerDecayPerTick = computed(() =>
-    Math.max(0.2, BASE_HUNGER_DECAY - (upgrades.gourmetFeed ? 0.15 : 0))
+    Math.max(
+      MIN_HUNGER_DECAY,
+      BASE_HUNGER_DECAY - (upgrades.gourmetFeed ? GOURMET_DECAY_REDUCTION : 0)
+    )
   );
-  const feedBonus = computed(() => (upgrades.gourmetFeed ? 5 : 0));
+  const feedBonus = computed(() =>
+    upgrades.gourmetFeed ? GOURMET_FEED_BONUS : 0
+  );
   const dropLifetimeMs = computed(
     () => BASE_DROP_LIFETIME + (upgrades.clarityFilters ? 4_000 : 0)
   );
@@ -382,7 +339,7 @@ export const useGameStore = defineStore("game", () => {
     localStorage.setItem("aquarium-game", JSON.stringify(payload));
   }
 
-  function feedFish(id: number, amount = 20) {
+  function feedFish(id: number, amount = FEED_AMOUNT) {
     const targetFish = fish.value.find((entry) => entry.id === id);
     if (!targetFish) return;
 
@@ -711,7 +668,10 @@ export const useGameStore = defineStore("game", () => {
           ...entry,
           hunger:
             entry.hunger < HAPPY_THRESHOLD
-              ? Math.min(100, entry.hunger + 15 + feedBonus.value)
+              ? Math.min(
+                  100,
+                  entry.hunger + AUTO_FEEDER_FEED_AMOUNT + feedBonus.value
+                )
               : entry.hunger,
         }));
         autoFeeder.lastFeedTime = now;

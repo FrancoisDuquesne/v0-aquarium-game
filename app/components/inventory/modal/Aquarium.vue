@@ -52,7 +52,7 @@ const selectedBackground = computed(() => game.background);
         </UCard>
       </div>
       <p v-if="!aquariumBackgrounds.length" class="text-sm text-muted">
-        Update <code>config/backgrounds.ts</code> to add more background images.
+        Update <code>utils/game-config.ts</code> to add more background images.
       </p>
     </div>
   </div>
