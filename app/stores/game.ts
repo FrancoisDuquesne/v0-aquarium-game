@@ -8,6 +8,8 @@ interface FishData {
   x: number;
   y: number;
   hunger: number;
+  health: number;
+  boredom: number;
   speed: number;
   coinProgress: number;
   careStreak: number;
@@ -22,7 +24,16 @@ interface Tools {
   spoonOwned: boolean;
 }
 
-type CoinDropType = "coin" | "stack" | "bill";
+type CoinDropType =
+  | "copper"
+  | "silver"
+  | "gold"
+  | "note"
+  | "bundle"
+  | "silver-bar"
+  | "gold-bar"
+  | "chest"
+  | "crown";
 
 interface CoinDrop {
   id: number;
@@ -70,6 +81,7 @@ interface GameState {
   upgrades: UpgradesState;
   decorations: string[];
   activeBoosts: ActiveBoost[];
+  lastMaintenanceTick: number;
 }
 
 const dropTimers = new Set<number>();
@@ -160,6 +172,8 @@ function normalizeFish(entry: Partial<FishData>): FishData {
     x: typeof entry.x === "number" ? entry.x : 50,
     y: typeof entry.y === "number" ? entry.y : 50,
     hunger: typeof entry.hunger === "number" ? entry.hunger : 80,
+    health: typeof entry.health === "number" ? entry.health : 100,
+    boredom: typeof entry.boredom === "number" ? entry.boredom : 0,
     speed: typeof entry.speed === "number" ? entry.speed : 2,
     coinProgress:
       typeof entry.coinProgress === "number" ? entry.coinProgress : 0,
@@ -216,6 +230,7 @@ export const useGameStore = defineStore("game", () => {
   const hasEverFed = ref(false);
   const background = ref(DEFAULT_BACKGROUND);
   const coinDrops = ref<CoinDrop[]>([]);
+  const lastMaintenanceTick = ref(Date.now());
   const coinCollector = reactive<CoinCollectorState>({
     ...DEFAULT_COIN_COLLECTOR,
   });
@@ -299,6 +314,13 @@ export const useGameStore = defineStore("game", () => {
         resolvedCoins += Math.floor(offlineCoins);
       }
 
+      const offlineMaintIntervals = Math.floor(offlineTime / MAINTENANCE_INTERVAL_MS);
+      if (offlineMaintIntervals > 0 && resolvedFish.length > 0) {
+        const maintCost = calculateMaintenance(resolvedFish, resolvedUpgrades, resolvedDecorations);
+        const offlineMaint = Math.floor(maintCost * offlineMaintIntervals * 0.25);
+        resolvedCoins = Math.max(MAINTENANCE_GRACE_LIMIT, resolvedCoins - offlineMaint);
+      }
+
       coins.value = resolvedCoins;
       fish.value = resolvedFish.map((entry) => normalizeFish(entry));
       lastSaveTime.value = now;
@@ -312,6 +334,10 @@ export const useGameStore = defineStore("game", () => {
       selectedTool.value = resolvedSelectedTool;
       hasEverFed.value = resolvedHasEverFed;
       background.value = resolvedBackground;
+      lastMaintenanceTick.value =
+        typeof parsed.lastMaintenanceTick === "number"
+          ? parsed.lastMaintenanceTick
+          : now;
     } catch (error) {
       console.warn("[game] Unable to read saved state", error);
     }
@@ -335,8 +361,13 @@ export const useGameStore = defineStore("game", () => {
       upgrades: { ...upgrades },
       decorations: [...decorations.value],
       activeBoosts: [...activeBoosts.value],
+      lastMaintenanceTick: lastMaintenanceTick.value,
     };
     localStorage.setItem("aquarium-game", JSON.stringify(payload));
+  }
+
+  function chargeFlake() {
+    coins.value = Math.max(MAINTENANCE_GRACE_LIMIT, coins.value - FLAKE_COST);
   }
 
   function feedFish(id: number, amount = FEED_AMOUNT) {
@@ -346,6 +377,7 @@ export const useGameStore = defineStore("game", () => {
     const boost = feedBonus.value;
     const prevHunger = targetFish.hunger;
     targetFish.hunger = Math.min(100, targetFish.hunger + amount + boost);
+    targetFish.boredom = clamp(targetFish.boredom - BOREDOM_FEED_BONUS, 0, 100);
     if (targetFish.hunger >= HAPPY_THRESHOLD && prevHunger < HAPPY_THRESHOLD) {
       targetFish.careStreak = clamp(
         targetFish.careStreak + 1,
@@ -387,9 +419,15 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function dropTypeFor(value: number): CoinDropType {
-    if (value >= 12) return "bill";
-    if (value >= 5) return "stack";
-    return "coin";
+    if (value >= 1000) return "crown";
+    if (value >= 500) return "chest";
+    if (value >= 250) return "gold-bar";
+    if (value >= 100) return "silver-bar";
+    if (value >= 50) return "bundle";
+    if (value >= 20) return "note";
+    if (value >= 10) return "gold";
+    if (value >= 5) return "silver";
+    return "copper";
   }
 
   function pruneCoinDrops(now = Date.now()) {
@@ -474,7 +512,6 @@ export const useGameStore = defineStore("game", () => {
     const index = coinDrops.value.findIndex((drop) => drop.id === id);
     if (index === -1) return;
     const [drop] = coinDrops.value.splice(index, 1);
-    coinDrops.value = [...coinDrops.value];
     coins.value = Math.round((coins.value + drop.value) * 100) / 100;
     save();
   }
@@ -624,6 +661,9 @@ export const useGameStore = defineStore("game", () => {
     }[] = [];
     const updatedFish: FishData[] = [];
 
+    const friendCountCapped = Math.min(2, fish.value.length - 1);
+    const boredDecorReduction = decorations.value.length * BOREDOM_DECOR_REDUCTION;
+
     fish.value.forEach((entry) => {
       const origin = { id: entry.id, x: entry.x, y: entry.y };
       const hungerLoss = hungerDecayPerTick.value;
@@ -633,13 +673,29 @@ export const useGameStore = defineStore("game", () => {
         careStreak = 0;
       }
 
+      // Health
+      let healthDelta = 0;
+      if (nextHunger < CARE_THRESHOLD) {
+        healthDelta = -HEALTH_DECAY_RATE * (1 - nextHunger / CARE_THRESHOLD);
+      } else if (nextHunger >= HAPPY_THRESHOLD) {
+        healthDelta = HEALTH_REGEN_RATE;
+      }
+      const nextHealth = clamp(entry.health + healthDelta, 0, 100);
+
+      // Boredom
+      const boredNet = BOREDOM_BASE_RATE - boredDecorReduction - friendCountCapped * BOREDOM_FRIEND_REDUCTION;
+      const nextBoredom = clamp(entry.boredom + Math.max(0, boredNet), 0, 100);
+
+      // Coins
       let progress = entry.coinProgress;
       if (nextHunger >= CARE_THRESHOLD) {
         const baseRate = coinRateFor(entry.type);
         const hungerMultiplier =
           nextHunger >= HAPPY_THRESHOLD ? 1.35 : 0.75 + nextHunger / 200;
         const streakBonus = 1 + careStreak * 0.12;
-        progress += baseRate * hungerMultiplier * streakBonus;
+        const boredMult = nextBoredom > BOREDOM_HIGH_THRESHOLD ? 0.7 : nextBoredom > 50 ? 0.85 : 1.0;
+        const healthMult = nextHealth < HEALTH_LOW_THRESHOLD ? Math.max(0, nextHealth / HEALTH_LOW_THRESHOLD) : 1.0;
+        progress += baseRate * hungerMultiplier * streakBonus * boredMult * healthMult;
       }
 
       const payout = Math.floor(progress);
@@ -651,12 +707,14 @@ export const useGameStore = defineStore("game", () => {
       updatedFish.push({
         ...entry,
         hunger: nextHunger,
+        health: nextHealth,
+        boredom: nextBoredom,
         careStreak,
         coinProgress: progress,
       });
     });
 
-    fish.value = updatedFish.filter((entry) => entry.hunger > 0);
+    fish.value = updatedFish.filter((entry) => entry.health > 0);
 
     dropsToSpawn.forEach(({ origin, amount }) =>
       scheduleCoinDrop(origin, amount, "baseline")
@@ -673,19 +731,41 @@ export const useGameStore = defineStore("game", () => {
                   entry.hunger + AUTO_FEEDER_FEED_AMOUNT + feedBonus.value
                 )
               : entry.hunger,
+          boredom: clamp(entry.boredom - BOREDOM_FEED_BONUS, 0, 100),
         }));
+        coins.value = Math.max(
+          MAINTENANCE_GRACE_LIMIT,
+          coins.value - AUTO_FEEDER_COST_PER_USE
+        );
         autoFeeder.lastFeedTime = now;
       }
+    }
+
+    if (now - lastMaintenanceTick.value >= MAINTENANCE_INTERVAL_MS) {
+      const cost = calculateMaintenance(fish.value, upgrades, decorations.value);
+      coins.value = Math.max(MAINTENANCE_GRACE_LIMIT, coins.value - cost);
+      lastMaintenanceTick.value = now;
     }
 
     maybeAutoCollect(now);
     save();
   }
 
+  function resetGame() {
+    if (!process.client) return;
+    localStorage.removeItem("aquarium-game");
+    window.location.reload();
+  }
+
+  // Load saved state synchronously so the very first render has correct data.
+  // Runs during store construction, before any component mounts.
+  load();
+
   return {
     coins,
     fish,
     lastSaveTime,
+    lastMaintenanceTick,
     autoFeeder,
     tools,
     selectedTool,
@@ -704,6 +784,8 @@ export const useGameStore = defineStore("game", () => {
     showHowTo,
     load,
     save,
+    resetGame,
+    chargeFlake,
     feedFish,
     removeFish,
     buyFish,

@@ -103,6 +103,11 @@ export const SPOON_SCATTER_COUNT = 8;
 export const SPOON_SCATTER_RADIUS = 24;
 export const AUTO_FEEDER_DISPENSE_COUNT = 8;
 export const AUTO_FEEDER_DISPENSE_TOP_RANGE = 6;
+export const SPOON_COST = 200;
+export const AUTO_FEEDER_COST = 500;
+export const FLAKE_COST = 0.5;
+export const SPOON_COST_PER_USE = 2;
+export const AUTO_FEEDER_COST_PER_USE = 3;
 
 export const FISH_CONFIG = {
   WAYPOINT_MIN_INTERVAL: 1200,
@@ -205,6 +210,39 @@ export const COIN_RATE: Record<string, number> = {
 export const OFFLINE_INTERVAL_MS = 5_000;
 export const OFFLINE_MAX_MS = 24 * 60 * 60 * 1000;
 
+// Health & boredom
+export const HEALTH_DECAY_RATE = 1.5;
+export const HEALTH_REGEN_RATE = 0.3;
+export const HEALTH_LOW_THRESHOLD = 40;
+export const BOREDOM_BASE_RATE = 1.5;
+export const BOREDOM_DECOR_REDUCTION = 1.5;
+export const BOREDOM_FRIEND_REDUCTION = 1.0;
+export const BOREDOM_FEED_BONUS = 15;
+export const BOREDOM_HIGH_THRESHOLD = 75;
+
+// Maintenance system
+export const MAINTENANCE_INTERVAL_MS = 60_000;
+export const MAINTENANCE_GRACE_LIMIT = -100;
+export const MAINTENANCE_WARNING_THRESHOLD = 50;
+export const BASE_POWER_COST = 1;
+export const POWER_PER_UPGRADE = 0.5;
+export const FOOD_MAINTENANCE_BASE = 0.5;
+export const FOOD_PER_FISH = 0.4;
+export const DECOR_MAINTENANCE_COST = 0.5;
+export const MAINTENANCE_WATER_COST: Record<string, number> = {
+  shark: 2.0,
+  tropical: 1.0,
+  angelfish: 0.8,
+  "jewel-cichlid": 0.75,
+  "pearl-gourami": 0.65,
+  betta: 0.6,
+  goldfish: 0.5,
+  "tiger-barb": 0.45,
+  "cherry-barb": 0.4,
+  guppy: 0.35,
+  neon: 0.3,
+};
+
 export const COIN_COLLECTOR_LEVELS: CoinCollectorLevel[] = [
   {
     level: 0,
@@ -301,6 +339,12 @@ export const FISH_SHOP_ITEMS: FishShopItem[] = [
     cost: 170,
     desc: "Striking red coloration; more territorial.",
   },
+  {
+    type: "shark",
+    name: "Baby Shark",
+    cost: 300,
+    desc: "Impressive and swift; the highest coin earner in the tank.",
+  },
 ];
 
 export const TANK_UPGRADES: UpgradeShopItem[] = [
@@ -372,3 +416,13 @@ export const POWER_UP_ITEMS: PowerUpShopItem[] = [
     icon: "🌙",
   },
 ];
+
+export function fishPreviewSize(type: string) {
+  const size =
+    FISH_CONFIG.FISH_SIZES[type as keyof typeof FISH_CONFIG.FISH_SIZES] ??
+    FISH_CONFIG.FISH_SIZES.goldfish;
+  return {
+    w: Math.min(size.width * 0.8, 48),
+    h: Math.min(size.height * 0.8, 32),
+  };
+}
