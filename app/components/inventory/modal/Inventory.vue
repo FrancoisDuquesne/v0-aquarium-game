@@ -25,8 +25,8 @@ const inventoryTabs = [
 ];
 
 const selectedSpecies = ref<"all" | string>("all");
-const healthFilter = ref<"all" | "healthy" | "hungry">("all");
-const sortKey = ref<"hunger" | "type" | "id">("hunger");
+const healthFilter = ref<"all" | "healthy" | "hungry" | "bored">("all");
+const sortKey = ref<"hunger" | "health" | "boredom" | "type" | "id">("hunger");
 const sortDir = ref<"asc" | "desc">("desc");
 
 const fishCounts = computed(() =>
@@ -37,10 +37,13 @@ const fishCounts = computed(() =>
 );
 const averageHunger = computed(() => game.averageHunger);
 const healthyFish = computed(
-  () => game.fish.filter((f) => f.hunger > 70).length
+  () => game.fish.filter((f) => f.hunger >= HAPPY_THRESHOLD).length
 );
 const hungryFish = computed(
-  () => game.fish.filter((f) => f.hunger < 40).length
+  () => game.fish.filter((f) => f.hunger < CARE_THRESHOLD).length
+);
+const boredFish = computed(
+  () => game.fish.filter((f) => f.boredom > BOREDOM_HIGH_THRESHOLD).length
 );
 
 const filtered = computed(() =>
@@ -50,8 +53,10 @@ const filtered = computed(() =>
       (healthFilter.value === "all"
         ? true
         : healthFilter.value === "healthy"
-        ? f.hunger > 70
-        : f.hunger < 40)
+        ? f.hunger >= HAPPY_THRESHOLD
+        : healthFilter.value === "hungry"
+        ? f.hunger < CARE_THRESHOLD
+        : f.boredom > BOREDOM_HIGH_THRESHOLD)
   )
 );
 
@@ -59,34 +64,37 @@ const sorted = computed(() =>
   [...filtered.value].sort((a, b) => {
     let v = 0;
     if (sortKey.value === "hunger") v = a.hunger - b.hunger;
+    else if (sortKey.value === "health") v = a.health - b.health;
+    else if (sortKey.value === "boredom") v = a.boredom - b.boredom;
     else if (sortKey.value === "type") v = a.type.localeCompare(b.type);
     else v = a.id - b.id;
     return sortDir.value === "asc" ? v : -v;
   })
 );
 
-const speciesNames: Record<string, string> = {
-  goldfish: "Goldfish",
-  angelfish: "Angelfish",
-  neon: "Neon Tetra",
-  tropical: "Tropical Fish",
-  shark: "Baby Shark",
-  betta: "Betta",
-  "cherry-barb": "Cherry Barb",
-  guppy: "Guppy",
-  "pearl-gourami": "Pearl Gourami",
-  "tiger-barb": "Tiger Barb",
-  "jewel-cichlid": "Jewel Cichlid",
-};
-
-function getPreview(type: string) {
-  const size =
-    (FISH_CONFIG.FISH_SIZES as any)[type] || FISH_CONFIG.FISH_SIZES.goldfish;
-  return {
-    w: Math.min(size.width * 0.8, 48),
-    h: Math.min(size.height * 0.8, 32),
-  };
+const shopNameMap = Object.fromEntries(
+  FISH_SHOP_ITEMS.map((item) => [item.type, item.name])
+);
+function fishName(type: string): string {
+  return shopNameMap[type] ?? type;
 }
+
+const fishIndexMap = computed(() => {
+  const byAge = [...game.fish].sort((a, b) => a.id - b.id);
+  return new Map(byAge.map((f, i) => [f.id, i + 1]));
+});
+
+const collectorStats = computed(
+  () =>
+    COIN_COLLECTOR_LEVELS.find((e) => e.level === game.coinCollector.level) ??
+    COIN_COLLECTOR_LEVELS[0]
+);
+const nextCollector = computed(() => nextCollectorLevel(game.coinCollector.level));
+const collectorDescription = computed(() => {
+  const s = collectorStats.value;
+  if (!Number.isFinite(s.cooldown)) return "Click coins manually to collect them.";
+  return `Collects up to ${s.capacity} drops every ${Math.round(s.cooldown / 1000)}s.`;
+});
 
 const goToStore = () => emit("go-to-store");
 </script>
@@ -129,6 +137,12 @@ const goToStore = () => emit("go-to-store");
                     :color="healthFilter === 'hungry' ? 'info' : 'neutral'"
                     :label="`🍽️ Hungry: ${hungryFish}`"
                     @click="healthFilter = 'hungry'" />
+                  <UButton
+                    variant="outline"
+                    size="sm"
+                    :color="healthFilter === 'bored' ? 'info' : 'neutral'"
+                    :label="`😴 Bored: ${boredFish}`"
+                    @click="healthFilter = 'bored'" />
                 </div>
               </div>
 
@@ -160,7 +174,7 @@ const goToStore = () => emit("go-to-store");
                           :height="16" />
                       </div>
                       <div class="text-left text-xs">
-                        {{ speciesNames[type as string] ?? type }}
+                        {{ fishName(type as string) }}
                       </div>
                       <div class="text-[10px] text-muted">{{ count }} fish</div>
                     </div>
@@ -176,8 +190,10 @@ const goToStore = () => emit("go-to-store");
                   size="sm"
                   :items="[
                     { id: 'hunger', label: 'Hunger' },
+                    { id: 'health', label: 'Health' },
+                    { id: 'boredom', label: 'Boredom' },
                     { id: 'type', label: 'Species' },
-                    { id: 'id', label: 'ID' },
+                    { id: 'id', label: 'Age' },
                   ]"
                   value-key="id" />
                 <USelect
@@ -196,51 +212,51 @@ const goToStore = () => emit("go-to-store");
             class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
             <UCard v-for="f in sorted" :key="f.id" class="p-2">
               <div class="flex items-center gap-2">
-                <div
-                  class="w-10 h-8 flex items-center justify-center bg-muted border border-muted rounded">
-                  <FishSvg
-                    :type="f.type"
-                    v-bind="getPreview(f.type)"
-                    class="drop-shadow-sm" />
+                <div class="w-10 h-8 flex items-center justify-center bg-muted border border-muted rounded shrink-0">
+                  <FishSvg :type="f.type" v-bind="fishPreviewSize(f.type)" class="drop-shadow-sm" />
                 </div>
-                <div class="min-w-0">
-                  <div class="text-xs truncate">
-                    {{ speciesNames[f.type] ?? f.type }}
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs truncate font-medium">{{ fishName(f.type) }}</div>
+                  <div class="text-[10px] text-muted">Fish #{{ fishIndexMap.get(f.id) }}</div>
+                </div>
+              </div>
+
+              <div class="mt-2 space-y-1.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] w-3">❤️</span>
+                  <div class="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      :class="f.health >= 70 ? 'bg-emerald-400' : f.health >= 40 ? 'bg-orange-400' : 'bg-red-500'"
+                      :style="{ width: f.health + '%' }" />
                   </div>
-                  <div class="text-[10px] text-muted">ID: {{ f.id }}</div>
+                  <span class="text-[10px] text-muted tabular-nums w-6 text-right">{{ Math.round(f.health) }}</span>
                 </div>
-                <div
-                  class="ml-auto w-2 h-2 rounded-full"
-                  :class="
-                    f.hunger > 70
-                      ? 'bg-green-500'
-                      : f.hunger > 40
-                      ? 'bg-yellow-500'
-                      : 'bg-red-500'
-                  " />
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] w-3">🍽️</span>
+                  <div class="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      :class="f.hunger >= HAPPY_THRESHOLD ? 'bg-green-400' : f.hunger >= CARE_THRESHOLD ? 'bg-yellow-400' : 'bg-red-400'"
+                      :style="{ width: f.hunger + '%' }" />
+                  </div>
+                  <span class="text-[10px] text-muted tabular-nums w-6 text-right">{{ Math.round(f.hunger) }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] w-3">😴</span>
+                  <div class="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      :class="f.boredom < 30 ? 'bg-green-400' : f.boredom < BOREDOM_HIGH_THRESHOLD ? 'bg-yellow-400' : 'bg-red-400'"
+                      :style="{ width: f.boredom + '%' }" />
+                  </div>
+                  <span class="text-[10px] text-muted tabular-nums w-6 text-right">{{ Math.round(f.boredom) }}</span>
+                </div>
               </div>
-              <div
-                class="text-[11px] text-muted flex items-center justify-between mt-2">
-                <span>Hunger: {{ f.hunger }}%</span>
-                <span class="text-gray-500"
-                  >Speed: {{ f.speed.toFixed(1) }}</span
-                >
-              </div>
+
               <div class="flex gap-2 mt-2">
-                <UButton
-                  size="xs"
-                  color="success"
-                  variant="soft"
-                  block
-                  label="Feed"
-                  @click="game.feedFish(f.id, 20)" />
-                <UButton
-                  size="xs"
-                  color="error"
-                  variant="soft"
-                  block
-                  icon="i-mdi-trash-can"
-                  @click="game.removeFish(f.id)" />
+                <UButton size="xs" color="success" variant="soft" block label="Feed" @click="game.feedFish(f.id, FEED_AMOUNT)" />
+                <UButton size="xs" color="error" variant="soft" block icon="i-mdi-trash-can" @click="game.removeFish(f.id)" />
               </div>
             </UCard>
 
@@ -299,7 +315,7 @@ const goToStore = () => emit("go-to-store");
                   <div class="min-w-0 flex-1">
                     <div class="text-xs truncate">Feeding Spoon</div>
                     <div class="text-[10px] text-yellow-400 font-semibold">
-                      200 coins
+                      {{ SPOON_COST }} coins
                     </div>
                   </div>
                 </div>
@@ -314,8 +330,8 @@ const goToStore = () => emit("go-to-store");
                   size="xs"
                   color="info"
                   label="Buy"
-                  :disabled="game.coins < 200"
-                  @click="game.buySpoon(200)" />
+                  :disabled="game.coins < SPOON_COST"
+                  @click="game.buySpoon(SPOON_COST)" />
               </div>
               <p class="text-[11px] text-muted mt-2">
                 Drop a handful of flakes with one click.
@@ -332,7 +348,7 @@ const goToStore = () => emit("go-to-store");
                   <div class="min-w-0 flex-1">
                     <div class="text-xs truncate">Auto Feeder</div>
                     <div class="text-[10px] text-yellow-400 font-semibold">
-                      500 coins
+                      {{ AUTO_FEEDER_COST }} coins
                     </div>
                   </div>
                 </div>
@@ -347,22 +363,37 @@ const goToStore = () => emit("go-to-store");
                   size="xs"
                   color="info"
                   label="Buy"
-                  :disabled="game.coins < 500"
-                  @click="game.buyAutoFeeder(500)" />
+                  :disabled="game.coins < AUTO_FEEDER_COST"
+                  @click="game.buyAutoFeeder(AUTO_FEEDER_COST)" />
               </div>
               <p class="text-[11px] text-muted mt-2">
                 Feeds fish automatically every 30 seconds.
               </p>
             </UCard>
 
-            <UButton
-              color="neutral"
-              variant="outline"
-              block
-              @click="() => goToStore()"
-              icon="i-mdi-plus"
-              label="Browse the store"
-              class="border-dashed border-2 min-h-20 ring-0 rounded-xl border-default hover:border-info hover:text-info" />
+            <UCard>
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                  <div
+                    class="w-10 h-8 flex items-center justify-center bg-muted border border-muted rounded text-2xl">
+                    🧺
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs truncate">Coin Collector</div>
+                    <div class="text-[10px] text-muted">{{ collectorStats.label }}</div>
+                  </div>
+                </div>
+                <UButton
+                  v-if="nextCollector"
+                  size="xs"
+                  color="info"
+                  :label="`Upgrade · ${nextCollector.cost}`"
+                  :disabled="game.coins < nextCollector.cost"
+                  @click="game.buyCoinCollectorUpgrade()" />
+                <UBadge v-else color="success" variant="soft" label="Maxed" class="self-start" />
+              </div>
+              <p class="text-[11px] text-muted mt-2">{{ collectorDescription }}</p>
+            </UCard>
           </div>
         </div>
       </template>
