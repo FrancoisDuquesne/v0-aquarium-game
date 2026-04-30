@@ -9,6 +9,8 @@ const hasOpenedStore = ref(false);
 
 const toast = useToast();
 
+type Section = "fish" | "shop" | "tools" | "tank";
+
 const menuItems = [
   [
     {
@@ -20,8 +22,7 @@ const menuItems = [
   ],
 ];
 
-const initialTab = ref<"inventory" | "store" | "aquarium">("inventory");
-const initialInventoryView = ref<"fish" | "tools">("fish");
+const initialSection = ref<Section>("fish");
 type ToolType = "flake" | "spoon";
 
 const toolLabels: Record<ToolType, string> = {
@@ -97,16 +98,14 @@ function sweepCollector() {
 }
 
 function openToolModal() {
-  initialTab.value = "inventory";
-  initialInventoryView.value = "tools";
+  initialSection.value = "tools";
   showModal.value = true;
 }
 
-function openInventory(tab: "inventory" | "store" | "aquarium") {
-  initialTab.value = tab;
-  initialInventoryView.value = "fish";
+function openSection(section: Section) {
+  initialSection.value = section;
   showModal.value = true;
-  if (tab === "store") hasOpenedStore.value = true;
+  if (section === "shop") hasOpenedStore.value = true;
 }
 
 // ── Hungry fish badge ──────────────────────────────────────────────────────
@@ -125,7 +124,7 @@ const tutorialStep = computed(() => {
 const tutorialMessage = computed(() => {
   if (tutorialStep.value === 0) return "👆 Tap the tank to drop food for your fish!";
   if (tutorialStep.value === 1) return "💰 Tap a glowing coin to collect it!";
-  if (tutorialStep.value === 2) return "🛒 Open the Store below to buy more fish and upgrades!";
+  if (tutorialStep.value === 2) return "🛒 Open the Shop below to buy more fish and upgrades!";
   return "";
 });
 
@@ -266,40 +265,50 @@ watch(
 
     <!-- Bottom nav -->
     <div class="fixed bottom-4 left-4 right-4 z-20">
-      <div class="rounded-xl p-1 flex gap-1 bg-muted justify-center w-fit mx-auto">
-        <!-- Inventory tab with hungry-fish badge -->
+      <div class="rounded-2xl p-1 flex gap-0.5 justify-center w-fit mx-auto shadow-2xl"
+        style="background: rgba(2,6,23,0.88); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px);">
+        <!-- Fish -->
         <div class="relative">
-          <UButton
-            label="📦 Inventory"
-            color="neutral"
-            variant="link"
-            @click="openInventory('inventory')" />
+          <button
+            class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+            @click="openSection('fish')">
+            <span class="text-base leading-none">🐟</span>
+            <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Fish</span>
+          </button>
           <span
             v-if="hungryFishCount > 0"
-            class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
+            class="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
             {{ hungryFishCount }}
           </span>
         </div>
-        <!-- Store tab — pulses during tutorial step 2 -->
-        <UButton
-          label="🛒 Store"
-          color="neutral"
-          variant="link"
-          :class="tutorialStep === 2 ? 'ring-2 ring-yellow-400/70 rounded-lg animate-pulse' : ''"
-          @click="openInventory('store')" />
-        <!-- Aquarium tab -->
-        <UButton
-          label="🌊 Aquarium"
-          color="neutral"
-          variant="link"
-          @click="openInventory('aquarium')" />
+        <!-- Shop -->
+        <button
+          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+          :class="tutorialStep === 2 ? 'ring-2 ring-yellow-400/60 animate-pulse text-yellow-300/80' : ''"
+          @click="openSection('shop')">
+          <span class="text-base leading-none">🛒</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Shop</span>
+        </button>
+        <!-- Tools -->
+        <button
+          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+          @click="openSection('tools')">
+          <span class="text-base leading-none">⚒️</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Tools</span>
+        </button>
+        <!-- Tank -->
+        <button
+          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+          @click="openSection('tank')">
+          <span class="text-base leading-none">🌊</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Tank</span>
+        </button>
       </div>
     </div>
 
     <InventoryModal
       v-model="showModal"
-      :initial-tab="initialTab"
-      :initial-inventory-view="initialInventoryView" />
+      :initial-section="initialSection" />
 
     <!-- Reset confirmation -->
     <UModal v-model:open="showResetConfirm" :overlay="false">
