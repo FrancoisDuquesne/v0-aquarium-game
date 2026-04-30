@@ -2,6 +2,18 @@
 const game = useGameStore();
 const now = useNow({ interval: 1000 });
 const showModal = ref(false);
+const showResetConfirm = ref(false);
+
+const menuItems = [
+  [
+    {
+      label: "Reset game",
+      icon: "i-mdi-trash-can-outline",
+      color: "error" as const,
+      onSelect: () => { showResetConfirm.value = true; },
+    },
+  ],
+];
 const tabs = [
   {
     value: "inventory",
@@ -113,14 +125,30 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
 
 <template>
   <div>
+    <div class="absolute top-0 right-0 p-2 z-20">
+      <UDropdownMenu :items="menuItems" :ui="{ content: 'min-w-40' }">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          icon="i-mdi-dots-vertical"
+          size="xs"
+          class="bg-default/80 shadow-xl rounded-xl"
+          aria-label="Menu" />
+      </UDropdownMenu>
+    </div>
+
     <div class="absolute top-0 left-0 p-2 flex z-20 flex-col gap-2">
       <div
         class="flex items-center gap-2 sm:gap-4 bg-default/80 rounded-2xl shadow-xl w-fit px-2 py-1 flex-wrap">
-        <span class="text-sm font-semibold">💰 {{ game.coins }}</span>
+        <span
+          class="text-sm font-semibold"
+          :class="game.coins < 0 ? 'text-red-400' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'text-yellow-400' : ''"
+          >💰 {{ abbreviateCoins(game.coins) }}</span
+        >
         <span class="text-sm font-semibold">🐟 {{ game.fish.length }}</span>
         <span class="text-sm font-semibold">❤️ {{ avg }}</span>
-        <span class="text-sm font-semibold text-success">
-          x{{ game.coinMultiplier.toFixed(2) }}%
+        <span v-if="game.coinMultiplier > 1" class="text-sm font-semibold text-success">
+          ×{{ game.coinMultiplier.toFixed(2) }}
         </span>
         <div v-if="boostBadges.length" class="flex flex-wrap gap-2">
           <UBadge
@@ -163,19 +191,6 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
             :disabled="!canSweep"
             :label="collectorButtonLabel"
             @click="sweepCollector" />
-          <!-- <UBadge
-            color="warning"
-            variant="subtle"
-            size="xs"
-            :label="`Lvl ${game.coinCollector.level}: ${collectorStats.label}`"
-            class="shadow-xl" />
-          <UBadge
-            v-if="nextCollector"
-            color="neutral"
-            variant="soft"
-            size="xs"
-            :label="`Next: ${nextCollector.label} · ${nextCollector.cost} coins`"
-            class="shadow" /> -->
         </div>
       </div>
     </div>
@@ -213,5 +228,23 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
       v-model="showModal"
       :initial-tab="initialTab"
       :initial-inventory-view="initialInventoryView" />
+
+    <UModal v-model:open="showResetConfirm" :overlay="false">
+      <template #content>
+        <div class="p-6 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🗑️</span>
+            <div>
+              <p class="font-semibold text-base">Reset game?</p>
+              <p class="text-sm text-muted-foreground">All progress will be lost permanently.</p>
+            </div>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <UButton color="neutral" variant="ghost" label="Cancel" @click="showResetConfirm = false" />
+            <UButton color="error" label="Reset" @click="game.resetGame()" />
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

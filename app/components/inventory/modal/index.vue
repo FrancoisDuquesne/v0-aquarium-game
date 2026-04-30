@@ -8,8 +8,8 @@ const props = withDefaults(
   }>(),
   { initialTab: "inventory", initialInventoryView: "fish" }
 );
-const activeTab = ref<"inventory" | "store" | "aquarium">("inventory");
-const inventoryView = ref<"fish" | "tools">("fish");
+const activeTab = ref(props.initialTab);
+const inventoryView = ref(props.initialInventoryView);
 const tabs = [
   {
     value: "inventory",
@@ -38,26 +38,6 @@ watch(
   }
 );
 
-watch(
-  () => props.initialTab,
-  (tab) => {
-    if (!open.value) {
-      activeTab.value = tab;
-    }
-  },
-  { immediate: true }
-);
-
-watch(
-  () => props.initialInventoryView,
-  (view) => {
-    if (!open.value) {
-      inventoryView.value = view;
-    }
-  },
-  { immediate: true }
-);
-
 const goToStore = () => {
   activeTab.value = "store";
 };
@@ -82,7 +62,9 @@ const goToStore = () => {
         }">
         <template #list-trailing>
           <div class="flex items-center gap-2 ml-auto">
-            <UBadge :label="`💰 ${Math.floor(game.coins)}`" />
+            <UBadge
+            :label="`💰 ${abbreviateCoins(game.coins)}`"
+            :color="game.coins < 0 ? 'error' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'warning' : 'neutral'" />
             <UButton
               color="neutral"
               variant="ghost"
