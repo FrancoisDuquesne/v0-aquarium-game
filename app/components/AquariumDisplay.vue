@@ -455,9 +455,11 @@ watch(
       :key="f.id"
       :fish-id="f.id"
       :type="f.type"
+      :name="f.name"
       :hunger="f.hunger"
       :health="f.health"
       :boredom="f.boredom"
+      :care-streak="f.careStreak"
       :is-being-fed="game.feedingFishId === f.id"
       :ref="setFishRef(f.id)" />
 

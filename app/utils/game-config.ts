@@ -417,6 +417,14 @@ export const POWER_UP_ITEMS: PowerUpShopItem[] = [
   },
 ];
 
+export const FISH_NAMES: string[] = [
+  'Bubbles', 'Finn', 'Coral', 'Ripple', 'Pearl', 'Splash', 'Marina', 'Azul', 'Goldie', 'Sapphire',
+  'Jade', 'Cobalt', 'Sunny', 'Misty', 'Shimmer', 'Glimmer', 'Luna', 'River', 'Brook', 'Eddy',
+  'Glow', 'Jewel', 'Lagoon', 'Nova', 'Pebble', 'Teal', 'Wave', 'Zephyr', 'Mochi', 'Waffles',
+  'Pepper', 'Noodle', 'Dumpling', 'Ginger', 'Clover', 'Poppy', 'Daisy', 'Cosmo', 'Driftwood', 'Reef',
+  'Skye', 'Harbor', 'Cove', 'Tide', 'Riptide', 'Comet', 'Stardust', 'Fable', 'Prism', 'Nimbus',
+];
+
 export function fishPreviewSize(type: string) {
   const size =
     FISH_CONFIG.FISH_SIZES[type as keyof typeof FISH_CONFIG.FISH_SIZES] ??

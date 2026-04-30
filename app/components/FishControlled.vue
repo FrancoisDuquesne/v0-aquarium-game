@@ -2,9 +2,11 @@
 const props = defineProps<{
   fishId: number;
   type: string;
+  name?: string;
   hunger: number;
   health: number;
   boredom: number;
+  careStreak?: number;
   isBeingFed?: boolean;
 }>();
 
@@ -58,6 +60,14 @@ const floatDelay = `${(props.fishId % 10) * 0.31}s`;
         <div class="h-1 w-full bg-black/30 rounded-full overflow-hidden">
           <div class="h-full rounded-full transition-[width] duration-700" :class="moodBarClass" :style="{ width: (100 - boredom) + '%' }" />
         </div>
+      </div>
+
+      <!-- Fish name label -->
+      <div
+        v-if="name"
+        class="absolute bottom-full left-1/2 -translate-x-1/2 pb-0.5 text-[9px] text-white/85 font-semibold pointer-events-none whitespace-nowrap leading-none select-none flex items-center gap-0.5"
+        style="text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.8)">
+        {{ name }}<span v-if="careStreak && careStreak >= 3" class="text-[8px]">🔥</span>
       </div>
 
       <!-- Fed / very happy bubble -->

@@ -5,6 +5,7 @@ type ToolType = "flake" | "spoon";
 interface FishData {
   id: number;
   type: string;
+  name: string;
   x: number;
   y: number;
   hunger: number;
@@ -165,10 +166,15 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function randomFishName(): string {
+  return FISH_NAMES[Math.floor(Math.random() * FISH_NAMES.length)];
+}
+
 function normalizeFish(entry: Partial<FishData>): FishData {
   return {
     id: typeof entry.id === "number" ? entry.id : Date.now(),
     type: entry.type ?? "goldfish",
+    name: typeof entry.name === "string" && entry.name.length ? entry.name : randomFishName(),
     x: typeof entry.x === "number" ? entry.x : 50,
     y: typeof entry.y === "number" ? entry.y : 50,
     hunger: typeof entry.hunger === "number" ? entry.hunger : 80,
@@ -191,36 +197,9 @@ function collectorStats(level: number) {
 export const useGameStore = defineStore("game", () => {
   const coins = ref(1000);
   const fish = ref<FishData[]>([
-    normalizeFish({
-      id: 1,
-      type: "goldfish",
-      x: 20,
-      y: 50,
-      hunger: 80,
-      speed: 2,
-      coinProgress: 0,
-      careStreak: 0,
-    }),
-    normalizeFish({
-      id: 2,
-      type: "angelfish",
-      x: 60,
-      y: 30,
-      hunger: 60,
-      speed: 1.5,
-      coinProgress: 0,
-      careStreak: 0,
-    }),
-    normalizeFish({
-      id: 3,
-      type: "neon",
-      x: 80,
-      y: 70,
-      hunger: 90,
-      speed: 3,
-      coinProgress: 0,
-      careStreak: 0,
-    }),
+    normalizeFish({ id: 1, type: "goldfish", name: "Goldie", x: 20, y: 50, hunger: 80, speed: 2, coinProgress: 0, careStreak: 0 }),
+    normalizeFish({ id: 2, type: "angelfish", name: "Marina", x: 60, y: 30, hunger: 60, speed: 1.5, coinProgress: 0, careStreak: 0 }),
+    normalizeFish({ id: 3, type: "neon", name: "Bubbles", x: 80, y: 70, hunger: 90, speed: 3, coinProgress: 0, careStreak: 0 }),
   ]);
   const lastSaveTime = ref(Date.now());
   const autoFeeder = reactive<AutoFeeder>({ ...DEFAULT_AUTO_FEEDER });
@@ -409,6 +388,7 @@ export const useGameStore = defineStore("game", () => {
       normalizeFish({
         id,
         type,
+        name: randomFishName(),
         x: Math.random() * 80 + 10,
         y: Math.random() * 60 + 20,
         hunger: 100,

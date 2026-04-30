@@ -216,8 +216,11 @@ const goToStore = () => emit("go-to-store");
                   <FishSvg :type="f.type" v-bind="fishPreviewSize(f.type)" class="drop-shadow-sm" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div class="text-xs truncate font-medium">{{ fishName(f.type) }}</div>
-                  <div class="text-[10px] text-muted">Fish #{{ fishIndexMap.get(f.id) }}</div>
+                  <div class="text-xs font-medium flex items-center gap-1 min-w-0">
+                    <span class="truncate">{{ f.name || fishName(f.type) }}</span>
+                    <span v-if="f.careStreak > 0" class="text-orange-400 text-[10px] shrink-0">🔥{{ f.careStreak }}</span>
+                  </div>
+                  <div class="text-[10px] text-muted">{{ fishName(f.type) }}</div>
                 </div>
               </div>
 
