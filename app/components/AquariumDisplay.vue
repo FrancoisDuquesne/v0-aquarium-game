@@ -43,9 +43,10 @@ type CoinDropView = {
   spawnY: number;
   fallDurationMs: number;
   fishId: number | null;
-  type: "coin" | "stack" | "bill";
+  type: "copper" | "silver" | "gold" | "note" | "bundle" | "silver-bar" | "gold-bar" | "chest" | "crown";
   source: string;
 };
+
 
 const placedDecorations = computed(
   () =>
@@ -86,6 +87,17 @@ onMounted(() => {
     const r = container.value.getBoundingClientRect();
     size.value = { w: r.width, h: r.height };
     ro.observe(container.value);
+    // Pre-position fish before the first RAF fires so they never flash at (0,0).
+    // fishEls is already populated because child components mount before parent onMounted.
+    game.fish.forEach((f) => {
+      if (!positions.has(f.id)) positions.set(f.id, { x: f.x, y: f.y });
+      if (!faces.has(f.id)) faces.set(f.id, 1);
+    });
+    fishEls.forEach((node, id) => {
+      const p = positions.get(id);
+      const face = faces.get(id) ?? 1;
+      if (p) setNodeTransform(node, p.x, p.y, face);
+    });
   }
   const loop = (ts: number) => {
     tick(ts);
@@ -319,7 +331,7 @@ function setFishRef(id: number) {
   };
 }
 
-function addFlakeAtPercent(xPct: number, yPct: number) {
+function addFlakeAtPercent(xPct: number, yPct: number, chargeCoins = true) {
   const id = Date.now() + Math.random();
   const fl: Flake = {
     id,
@@ -330,6 +342,7 @@ function addFlakeAtPercent(xPct: number, yPct: number) {
   };
   flakes.set(id, fl);
   flakeIds.value = [...flakeIds.value, id].slice(-MAX_FLAKES);
+  if (chargeCoins) game.chargeFlake();
 }
 
 function addFlakeAt(clientX: number, clientY: number) {
@@ -344,7 +357,7 @@ function dispenseAutoFeederFlakes(quantity = AUTO_FEEDER_DISPENSE_COUNT) {
   for (let i = 0; i < quantity; i++) {
     const xPct = Math.random() * 100;
     const yPct = Math.random() * AUTO_FEEDER_DISPENSE_TOP_RANGE;
-    addFlakeAtPercent(xPct, yPct);
+    addFlakeAtPercent(xPct, yPct, false); // cost already charged in store tick()
   }
 }
 
@@ -391,12 +404,6 @@ function coinStyle(drop: CoinDropView) {
     "--drop-end-top": `${anchor.endTop}%`,
     "--drop-fall-duration": `${anchor.duration}ms`,
   };
-}
-
-function dropIcon(type: CoinDropView["type"]) {
-  if (type === "bill") return "💵";
-  if (type === "stack") return "💰";
-  return "🪙";
 }
 
 function collectDrop(id: number) {
@@ -449,6 +456,8 @@ watch(
       :fish-id="f.id"
       :type="f.type"
       :hunger="f.hunger"
+      :health="f.health"
+      :boredom="f.boredom"
       :is-being-fed="game.feedingFishId === f.id"
       :ref="setFishRef(f.id)" />
 
@@ -465,12 +474,11 @@ watch(
       <button
         v-for="drop in game.coinDrops as CoinDropView[]"
         :key="drop.id"
-        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-yellow-200/60"
+        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 focus:outline-none"
         :style="coinStyle(drop)"
         :title="`Collect ${drop.value} coins`"
         @click.stop="collectDrop(drop.id)">
-        <span class="text-base leading-none">{{ dropIcon(drop.type) }}</span>
-        <span>{{ drop.value }}</span>
+        <CoinDropSvg :type="drop.type" />
       </button>
     </TransitionGroup>
 
