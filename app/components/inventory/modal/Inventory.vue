@@ -355,12 +355,12 @@ const goToStore = () => emit("go-to-store");
                     </div>
                   </div>
                 </div>
-                <UButton
+                <UBadge
                   v-if="game.autoFeeder.owned"
-                  size="xs"
-                  :color="game.autoFeeder.active ? 'error' : 'success'"
-                  :label="game.autoFeeder.active ? 'Turn Off' : 'Turn On'"
-                  @click="game.toggleAutoFeeder()" />
+                  :color="game.autoFeeder.active ? 'success' : 'neutral'"
+                  :label="game.autoFeeder.active ? 'Active' : 'Paused'"
+                  variant="soft"
+                  class="self-start" />
                 <UButton
                   v-else
                   size="xs"

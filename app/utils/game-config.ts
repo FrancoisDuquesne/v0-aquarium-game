@@ -166,7 +166,7 @@ export const DROP_MAX = 36;
 export const DROP_FLOOR_Y = 94;
 export const DROP_FALL_DURATION_MIN = 20_000;
 export const DROP_FALL_DURATION_PER_PCT = 22;
-export const BASE_DROP_LIFETIME = 22_000;
+export const BASE_DROP_LIFETIME = 40_000;
 
 export const CARE_STREAK_MAX = 5;
 export const BASE_HUNGER_DECAY = 0.5;

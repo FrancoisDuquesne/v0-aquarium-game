@@ -4,7 +4,23 @@ import { useIntervalFn } from "@vueuse/core";
 definePageMeta({ colorMode: "dark" });
 
 const game = useGameStore();
+const toast = useToast();
 useIntervalFn(() => game.tick(), 5000);
+
+onMounted(() => {
+  function onStorage(e: StorageEvent) {
+    if (e.key === "aquarium-game") {
+      toast.add({
+        title: "Another tab is open",
+        description: "Only one tab saves progress. Close other tabs to avoid losing coins.",
+        color: "warning",
+        duration: 0,
+      });
+    }
+  }
+  window.addEventListener("storage", onStorage);
+  onUnmounted(() => window.removeEventListener("storage", onStorage));
+});
 </script>
 
 <template>

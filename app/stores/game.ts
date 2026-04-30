@@ -208,6 +208,10 @@ export const useGameStore = defineStore("game", () => {
   const selectedTool = ref<ToolType>("flake");
   const feedingFishId = ref<number | null>(null);
   const hasEverFed = ref(false);
+  const hasEverCollected = ref(false);
+  const pendingDeaths = ref<{ id: number; name: string; type: string }[]>([]);
+  const pendingOfflineReward = ref(0);
+  const pendingStorageWarning = ref(false);
   const purchasedExpansions = ref<string[]>([]);
   const tankCapacity = computed(() => {
     const extraSlots = TANK_EXPANSION_ITEMS
@@ -278,6 +282,7 @@ export const useGameStore = defineStore("game", () => {
           ? "spoon"
           : "flake";
       const resolvedHasEverFed = Boolean(parsed.hasEverFed);
+      const resolvedHasEverCollected = Boolean(parsed.hasEverCollected);
       const resolvedBackground = normalizeBackgroundPath(parsed.background);
       const resolvedCollector = resolveCoinCollector(parsed.coinCollector);
       const resolvedUpgrades = resolveUpgrades(parsed.upgrades);
@@ -298,7 +303,11 @@ export const useGameStore = defineStore("game", () => {
         resolvedFish.forEach((entry) => {
           offlineCoins += coinRateFor(entry.type) * intervals * 0.25;
         });
-        resolvedCoins += Math.floor(offlineCoins);
+        const earned = Math.floor(offlineCoins);
+        resolvedCoins += earned;
+        if (offlineTime > 5 * 60 * 1000 && earned > 0) {
+          pendingOfflineReward.value = earned;
+        }
       }
 
       const offlineMaintIntervals = Math.floor(offlineTime / MAINTENANCE_INTERVAL_MS);
@@ -320,6 +329,7 @@ export const useGameStore = defineStore("game", () => {
       coinDrops.value = [];
       selectedTool.value = resolvedSelectedTool;
       hasEverFed.value = resolvedHasEverFed;
+      hasEverCollected.value = resolvedHasEverCollected;
       background.value = resolvedBackground;
       lastMaintenanceTick.value =
         typeof parsed.lastMaintenanceTick === "number"
@@ -346,6 +356,7 @@ export const useGameStore = defineStore("game", () => {
       selectedTool: selectedTool.value,
       feedingFishId: feedingFishId.value,
       hasEverFed: hasEverFed.value,
+      hasEverCollected: hasEverCollected.value,
       background: background.value,
       coinCollector: { ...coinCollector },
       upgrades: { ...upgrades },
@@ -354,7 +365,13 @@ export const useGameStore = defineStore("game", () => {
       lastMaintenanceTick: lastMaintenanceTick.value,
       purchasedExpansions: [...purchasedExpansions.value],
     };
-    localStorage.setItem("aquarium-game", JSON.stringify(payload));
+    try {
+      localStorage.setItem("aquarium-game", JSON.stringify(payload));
+    } catch (e) {
+      if (e instanceof DOMException && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
+        pendingStorageWarning.value = true;
+      }
+    }
   }
 
   function chargeFlake() {
@@ -418,6 +435,18 @@ export const useGameStore = defineStore("game", () => {
     purchasedExpansions.value = [...purchasedExpansions.value, id];
     save();
     return true;
+  }
+
+  function clearPendingDeaths() {
+    pendingDeaths.value = [];
+  }
+
+  function clearOfflineReward() {
+    pendingOfflineReward.value = 0;
+  }
+
+  function clearStorageWarning() {
+    pendingStorageWarning.value = false;
   }
 
   function dropTypeFor(value: number): CoinDropType {
@@ -515,6 +544,9 @@ export const useGameStore = defineStore("game", () => {
     if (index === -1) return;
     const [drop] = coinDrops.value.splice(index, 1);
     coins.value = Math.round((coins.value + drop.value) * 100) / 100;
+    if (!hasEverCollected.value) {
+      hasEverCollected.value = true;
+    }
     save();
   }
 
@@ -684,9 +716,10 @@ export const useGameStore = defineStore("game", () => {
       }
       const nextHealth = clamp(entry.health + healthDelta, 0, 100);
 
-      // Boredom
+      // Boredom — floored at 20% of base rate to prevent permanent nullification
       const boredNet = BOREDOM_BASE_RATE - boredDecorReduction - friendCountCapped * BOREDOM_FRIEND_REDUCTION;
-      const nextBoredom = clamp(entry.boredom + Math.max(0, boredNet), 0, 100);
+      const boredRate = Math.max(BOREDOM_BASE_RATE * 0.2, boredNet);
+      const nextBoredom = clamp(entry.boredom + boredRate, 0, 100);
 
       // Coins
       let progress = entry.coinProgress;
@@ -716,6 +749,13 @@ export const useGameStore = defineStore("game", () => {
       });
     });
 
+    const dying = updatedFish.filter((entry) => entry.health <= 0);
+    if (dying.length) {
+      pendingDeaths.value = [
+        ...pendingDeaths.value,
+        ...dying.map((e) => ({ id: e.id, name: e.name, type: e.type })),
+      ];
+    }
     fish.value = updatedFish.filter((entry) => entry.health > 0);
 
     dropsToSpawn.forEach(({ origin, amount }) =>
@@ -724,6 +764,7 @@ export const useGameStore = defineStore("game", () => {
 
     if (autoFeeder.owned && autoFeeder.active) {
       if (now - autoFeeder.lastFeedTime >= autoFeeder.feedInterval) {
+        const hungryCount = fish.value.filter((e) => e.hunger < HAPPY_THRESHOLD).length;
         fish.value = fish.value.map((entry) => ({
           ...entry,
           hunger:
@@ -735,10 +776,12 @@ export const useGameStore = defineStore("game", () => {
               : entry.hunger,
           boredom: clamp(entry.boredom - BOREDOM_FEED_BONUS, 0, 100),
         }));
-        coins.value = Math.max(
-          MAINTENANCE_GRACE_LIMIT,
-          coins.value - AUTO_FEEDER_COST_PER_USE
-        );
+        if (hungryCount > 0) {
+          coins.value = Math.max(
+            MAINTENANCE_GRACE_LIMIT,
+            coins.value - AUTO_FEEDER_COST_PER_USE
+          );
+        }
         autoFeeder.lastFeedTime = now;
       }
     }
@@ -775,6 +818,10 @@ export const useGameStore = defineStore("game", () => {
     hasEverFed,
     purchasedExpansions,
     tankCapacity,
+    hasEverCollected,
+    pendingDeaths,
+    pendingOfflineReward,
+    pendingStorageWarning,
     background,
     coinDrops,
     coinCollector,
@@ -805,6 +852,9 @@ export const useGameStore = defineStore("game", () => {
     buyDecoration,
     activateBoost,
     buyTankExpansion,
+    clearPendingDeaths,
+    clearOfflineReward,
+    clearStorageWarning,
     tick,
   };
 });

@@ -3,6 +3,11 @@ const game = useGameStore();
 const now = useNow({ interval: 1000 });
 const showModal = ref(false);
 const showResetConfirm = ref(false);
+const showOfflineModal = ref(false);
+const offlineAmount = ref(0);
+const hasOpenedStore = ref(false);
+
+const toast = useToast();
 
 const menuItems = [
   [
@@ -14,26 +19,7 @@ const menuItems = [
     },
   ],
 ];
-const tabs = [
-  {
-    value: "inventory",
-    label: "📦 Inventory",
-    slot: "inventory" as const,
-    onselect: () => openInventory("inventory"),
-  },
-  {
-    value: "store",
-    label: "🛒 Store",
-    slot: "store" as const,
-    onselect: () => openInventory("store"),
-  },
-  {
-    value: "aquarium",
-    label: "🌊 Aquarium",
-    slot: "aquarium" as const,
-    onselect: () => openInventory("aquarium"),
-  },
-];
+
 const initialTab = ref<"inventory" | "store" | "aquarium">("inventory");
 const initialInventoryView = ref<"fish" | "tools">("fish");
 type ToolType = "flake" | "spoon";
@@ -120,7 +106,78 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
   initialTab.value = tab;
   initialInventoryView.value = "fish";
   showModal.value = true;
+  if (tab === "store") hasOpenedStore.value = true;
 }
+
+// ── Hungry fish badge ──────────────────────────────────────────────────────
+const hungryFishCount = computed(
+  () => game.fish.filter((f) => f.hunger < CARE_THRESHOLD).length
+);
+
+// ── Tutorial ───────────────────────────────────────────────────────────────
+const tutorialStep = computed(() => {
+  if (!game.hasEverFed) return 0;
+  if (!game.hasEverCollected) return 1;
+  if (!hasOpenedStore.value) return 2;
+  return -1;
+});
+
+const tutorialMessage = computed(() => {
+  if (tutorialStep.value === 0) return "👆 Tap the tank to drop food for your fish!";
+  if (tutorialStep.value === 1) return "💰 Tap a glowing coin to collect it!";
+  if (tutorialStep.value === 2) return "🛒 Open the Store below to buy more fish and upgrades!";
+  return "";
+});
+
+// ── Death toasts ───────────────────────────────────────────────────────────
+const fishNameMap = Object.fromEntries(FISH_SHOP_ITEMS.map((item) => [item.type, item.name]));
+
+watch(
+  () => game.pendingDeaths,
+  (deaths) => {
+    if (!deaths.length) return;
+    deaths.forEach((d) => {
+      const species = fishNameMap[d.type] ?? d.type;
+      toast.add({
+        title: `${d.name} has died 💔`,
+        description: `Your ${species} didn't make it. Remember to keep your fish fed!`,
+        color: "error",
+        duration: 6000,
+      });
+    });
+    game.clearPendingDeaths();
+  },
+  { deep: true }
+);
+
+// ── Storage warning ────────────────────────────────────────────────────────
+watch(
+  () => game.pendingStorageWarning,
+  (val) => {
+    if (val) {
+      toast.add({
+        title: "Storage full",
+        description: "Progress may not be saving. Clear some browser storage and reload.",
+        color: "warning",
+        duration: 0,
+      });
+      game.clearStorageWarning();
+    }
+  }
+);
+
+// ── Offline earnings splash ────────────────────────────────────────────────
+watch(
+  () => game.pendingOfflineReward,
+  (amount) => {
+    if (amount > 0) {
+      offlineAmount.value = amount;
+      showOfflineModal.value = true;
+      game.clearOfflineReward();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -195,32 +252,47 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
       </div>
     </div>
 
+    <!-- Tutorial hint -->
     <div
-      v-if="game.showHowTo"
+      v-if="tutorialStep >= 0"
       class="absolute bottom-16 left-2 right-2 sm:bottom-20 sm:left-3 sm:right-auto z-20">
       <div
-        class="bg-gray-900/80 rounded-lg backdrop-blur border border-gray-700 p-3 sm:p-2 animate-pulse">
-        <p class="text-xs sm:text-sm text-gray-300 text-center sm:text-left">
-          <span class="hidden sm:inline"
-            >👆 Click to drop food • Use the tool selector to switch feeding
-            modes</span
-          >
-          <span class="sm:hidden"
-            >👆 Tap to drop food • Use the tool selector</span
-          >
+        class="bg-gray-900/85 rounded-lg backdrop-blur border border-gray-600/60 p-3 animate-pulse">
+        <p class="text-xs sm:text-sm text-white text-center sm:text-left">
+          {{ tutorialMessage }}
         </p>
       </div>
     </div>
 
+    <!-- Bottom nav -->
     <div class="fixed bottom-4 left-4 right-4 z-20">
-      <div
-        class="rounded-xl p-1 flex gap-1 bg-muted justify-center w-fit mx-auto">
+      <div class="rounded-xl p-1 flex gap-1 bg-muted justify-center w-fit mx-auto">
+        <!-- Inventory tab with hungry-fish badge -->
+        <div class="relative">
+          <UButton
+            label="📦 Inventory"
+            color="neutral"
+            variant="link"
+            @click="openInventory('inventory')" />
+          <span
+            v-if="hungryFishCount > 0"
+            class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
+            {{ hungryFishCount }}
+          </span>
+        </div>
+        <!-- Store tab — pulses during tutorial step 2 -->
         <UButton
-          v-for="tab in tabs"
-          :label="tab.label"
-          @click="tab.onselect"
+          label="🛒 Store"
           color="neutral"
-          variant="link" />
+          variant="link"
+          :class="tutorialStep === 2 ? 'ring-2 ring-yellow-400/70 rounded-lg animate-pulse' : ''"
+          @click="openInventory('store')" />
+        <!-- Aquarium tab -->
+        <UButton
+          label="🌊 Aquarium"
+          color="neutral"
+          variant="link"
+          @click="openInventory('aquarium')" />
       </div>
     </div>
 
@@ -229,6 +301,7 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
       :initial-tab="initialTab"
       :initial-inventory-view="initialInventoryView" />
 
+    <!-- Reset confirmation -->
     <UModal v-model:open="showResetConfirm" :overlay="false">
       <template #content>
         <div class="p-6 flex flex-col gap-4">
@@ -243,6 +316,26 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
             <UButton color="neutral" variant="ghost" label="Cancel" @click="showResetConfirm = false" />
             <UButton color="error" label="Reset" @click="game.resetGame()" />
           </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Offline earnings splash -->
+    <UModal v-model:open="showOfflineModal" :overlay="false">
+      <template #content>
+        <div class="p-6 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">🐠</span>
+            <div>
+              <p class="font-semibold text-base">Welcome back!</p>
+              <p class="text-sm text-muted-foreground">Your fish were busy while you were away.</p>
+            </div>
+          </div>
+          <div class="bg-muted rounded-xl p-4 text-center">
+            <span class="text-2xl font-bold text-yellow-400">💰 +{{ offlineAmount }}</span>
+            <p class="text-xs text-muted mt-1">coins earned while offline</p>
+          </div>
+          <UButton color="info" label="Dive Back In 🌊" block @click="showOfflineModal = false" />
         </div>
       </template>
     </UModal>

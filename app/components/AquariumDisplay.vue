@@ -28,6 +28,8 @@ const dropAnchors = new Map<
   { left: number; startTop: number; endTop: number; duration: number }
 >();
 
+const coinPopups = ref<{ id: number; value: number; x: number; y: number }[]>([]);
+
 const activeFishIds = new Set<number>();
 const fishHunger = new Map<number, number>();
 const flakesToRemove: number[] = [];
@@ -233,6 +235,7 @@ function tick(ts: number) {
       flakes.forEach((fl) => {
         const dx = fl.x - pos.x;
         const dy = fl.y - pos.y;
+        if (Math.abs(dx) > nearestDist || Math.abs(dy) > nearestDist) return;
         const d = Math.hypot(dx, dy);
         if (d < nearestDist) {
           nearest = fl;
@@ -407,6 +410,13 @@ function coinStyle(drop: CoinDropView) {
 }
 
 function collectDrop(id: number) {
+  const drop = game.coinDrops.find((d) => d.id === id);
+  if (drop) {
+    coinPopups.value.push({ id: drop.id, value: drop.value, x: drop.x, y: drop.y });
+    setTimeout(() => {
+      coinPopups.value = coinPopups.value.filter((p) => p.id !== id);
+    }, 900);
+  }
   game.collectCoinDrop(id);
 }
 
@@ -476,13 +486,22 @@ watch(
       <button
         v-for="drop in game.coinDrops as CoinDropView[]"
         :key="drop.id"
-        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 focus:outline-none"
+        class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 focus:outline-none min-w-[44px] min-h-[44px] flex items-center justify-center"
         :style="coinStyle(drop)"
         :title="`Collect ${drop.value} coins`"
         @click.stop="collectDrop(drop.id)">
         <CoinDropSvg :type="drop.type" />
       </button>
     </TransitionGroup>
+
+    <!-- Coin collect value popups -->
+    <div
+      v-for="popup in coinPopups"
+      :key="popup.id"
+      class="coin-popup absolute pointer-events-none font-bold text-yellow-300 text-sm z-30 drop-shadow"
+      :style="{ left: popup.x + '%', top: popup.y + '%' }">
+      +{{ popup.value }}
+    </div>
 
     <div
       v-for="decor in placedDecorations"
