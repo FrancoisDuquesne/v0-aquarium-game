@@ -83,6 +83,7 @@ interface GameState {
   decorations: string[];
   activeBoosts: ActiveBoost[];
   lastMaintenanceTick: number;
+  purchasedExpansions: string[];
 }
 
 const dropTimers = new Set<number>();
@@ -207,6 +208,13 @@ export const useGameStore = defineStore("game", () => {
   const selectedTool = ref<ToolType>("flake");
   const feedingFishId = ref<number | null>(null);
   const hasEverFed = ref(false);
+  const purchasedExpansions = ref<string[]>([]);
+  const tankCapacity = computed(() => {
+    const extraSlots = TANK_EXPANSION_ITEMS
+      .filter((item) => purchasedExpansions.value.includes(item.id))
+      .reduce((sum, item) => sum + item.slots, 0);
+    return TANK_CAPACITY_BASE + extraSlots;
+  });
   const background = ref(DEFAULT_BACKGROUND);
   const coinDrops = ref<CoinDrop[]>([]);
   const lastMaintenanceTick = ref(Date.now());
@@ -317,6 +325,9 @@ export const useGameStore = defineStore("game", () => {
         typeof parsed.lastMaintenanceTick === "number"
           ? parsed.lastMaintenanceTick
           : now;
+      purchasedExpansions.value = Array.isArray(parsed.purchasedExpansions)
+        ? parsed.purchasedExpansions.filter((id) => typeof id === "string")
+        : [];
     } catch (error) {
       console.warn("[game] Unable to read saved state", error);
     }
@@ -341,6 +352,7 @@ export const useGameStore = defineStore("game", () => {
       decorations: [...decorations.value],
       activeBoosts: [...activeBoosts.value],
       lastMaintenanceTick: lastMaintenanceTick.value,
+      purchasedExpansions: [...purchasedExpansions.value],
     };
     localStorage.setItem("aquarium-game", JSON.stringify(payload));
   }
@@ -382,6 +394,7 @@ export const useGameStore = defineStore("game", () => {
 
   function buyFish(type: string, cost: number) {
     if (coins.value < cost) return;
+    if (fish.value.length >= tankCapacity.value) return;
     const id = Date.now();
     coins.value -= cost;
     fish.value.push(
@@ -396,6 +409,15 @@ export const useGameStore = defineStore("game", () => {
       })
     );
     save();
+  }
+
+  function buyTankExpansion(id: string, cost: number, slots: number) {
+    if (coins.value < cost) return false;
+    if (purchasedExpansions.value.includes(id)) return false;
+    coins.value -= cost;
+    purchasedExpansions.value = [...purchasedExpansions.value, id];
+    save();
+    return true;
   }
 
   function dropTypeFor(value: number): CoinDropType {
@@ -751,6 +773,8 @@ export const useGameStore = defineStore("game", () => {
     selectedTool,
     feedingFishId,
     hasEverFed,
+    purchasedExpansions,
+    tankCapacity,
     background,
     coinDrops,
     coinCollector,
@@ -780,6 +804,7 @@ export const useGameStore = defineStore("game", () => {
     buyUpgrade,
     buyDecoration,
     activateBoost,
+    buyTankExpansion,
     tick,
   };
 });

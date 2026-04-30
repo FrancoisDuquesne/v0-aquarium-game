@@ -145,8 +145,8 @@ function openInventory(tab: "inventory" | "store" | "aquarium") {
           :class="game.coins < 0 ? 'text-red-400' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'text-yellow-400' : ''"
           >💰 {{ abbreviateCoins(game.coins) }}</span
         >
-        <span class="text-sm font-semibold">🐟 {{ game.fish.length }}</span>
-        <span class="text-sm font-semibold">❤️ {{ avg }}</span>
+        <span class="text-sm font-semibold">🐟 {{ game.fish.length }} / {{ game.tankCapacity }}</span>
+        <span class="text-sm font-semibold">🍽️ {{ avg }}</span>
         <span v-if="game.coinMultiplier > 1" class="text-sm font-semibold text-success">
           ×{{ game.coinMultiplier.toFixed(2) }}
         </span>

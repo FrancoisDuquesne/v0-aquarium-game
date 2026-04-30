@@ -2,6 +2,7 @@
 const game = useGameStore();
 const shopItems = FISH_SHOP_ITEMS;
 const upgradeItems = TANK_UPGRADES;
+const expansionItems = TANK_EXPANSION_ITEMS;
 const decorItems = DECOR_ITEMS;
 const powerUpItems = POWER_UP_ITEMS;
 
@@ -67,8 +68,8 @@ function activatePowerUp(id: string, cost: number) {
           <UButton
             size="xs"
             color="info"
-            label="Buy"
-            :disabled="game.coins < item.cost"
+            :label="game.fish.length >= game.tankCapacity ? 'Tank full' : 'Buy'"
+            :disabled="game.coins < item.cost || game.fish.length >= game.tankCapacity"
             @click="game.buyFish(item.type, item.cost)" />
         </UCard>
       </div>
@@ -109,6 +110,46 @@ function activatePowerUp(id: string, cost: number) {
             {{ item.desc }}
           </p>
           <p class="text-[10px] text-emerald-300 mt-1">{{ item.effect }}</p>
+        </UCard>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-sm mb-2">Tank capacity</h3>
+      <p class="text-xs text-muted mb-2">{{ game.fish.length }} / {{ game.tankCapacity }} slots used</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <UCard v-for="item in expansionItems" :key="item.id">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <div
+                class="w-10 h-8 flex items-center justify-center bg-gray-700/40 rounded text-2xl">
+                {{ item.icon }}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs truncate">{{ item.name }}</div>
+                <div class="text-[10px] text-yellow-400 font-semibold">
+                  {{ item.cost.toLocaleString() }} coins
+                </div>
+                <div class="text-[10px] text-emerald-300 font-semibold">
+                  +{{ item.slots }} slots
+                </div>
+              </div>
+            </div>
+            <UBadge
+              v-if="game.purchasedExpansions.includes(item.id)"
+              color="info"
+              variant="soft"
+              label="Owned"
+              class="self-start" />
+            <UButton
+              v-else
+              size="xs"
+              color="info"
+              label="Buy"
+              :disabled="game.coins < item.cost"
+              @click="game.buyTankExpansion(item.id, item.cost, item.slots)" />
+          </div>
+          <p class="text-[11px] text-muted mt-2 leading-snug">{{ item.desc }}</p>
         </UCard>
       </div>
     </div>

@@ -425,6 +425,23 @@ export const FISH_NAMES: string[] = [
   'Skye', 'Harbor', 'Cove', 'Tide', 'Riptide', 'Comet', 'Stardust', 'Fable', 'Prism', 'Nimbus',
 ];
 
+export const TANK_CAPACITY_BASE = 8;
+
+export interface TankExpansionItem {
+  id: string;
+  name: string;
+  slots: number;
+  cost: number;
+  desc: string;
+  icon: string;
+}
+
+export const TANK_EXPANSION_ITEMS: TankExpansionItem[] = [
+  { id: "small-expansion", name: "Compact Extension", slots: 4, cost: 2_000, desc: "A modular side panel that squeezes in 4 more fish.", icon: "🪣" },
+  { id: "large-expansion", name: "Open-Water Wing", slots: 8, cost: 8_000, desc: "A full side wing that comfortably hosts 8 more fish.", icon: "🏊" },
+  { id: "mega-expansion", name: "Deep-Sea Chamber", slots: 14, cost: 30_000, desc: "A cavernous vault that fits 14 more fish.", icon: "🌊" },
+];
+
 export function fishPreviewSize(type: string) {
   const size =
     FISH_CONFIG.FISH_SIZES[type as keyof typeof FISH_CONFIG.FISH_SIZES] ??
