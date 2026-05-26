@@ -2,7 +2,7 @@
 const game = useGameStore();
 const open = defineModel<boolean>({ required: true });
 
-type Section = "fish" | "shop" | "tools" | "tank";
+type Section = "fish" | "shop" | "tools" | "tank" | "goals";
 
 const props = withDefaults(
   defineProps<{ initialSection?: Section }>(),
@@ -27,6 +27,7 @@ const sections: { id: Section; icon: string; label: string }[] = [
   { id: "shop",  icon: "🛒", label: "Shop"  },
   { id: "tools", icon: "⚒️", label: "Tools" },
   { id: "tank",  icon: "🌊", label: "Tank"  },
+  { id: "goals", icon: "🏆", label: "Goals" },
 ];
 
 const goToShop = () => { activeSection.value = "shop"; };
@@ -100,6 +101,8 @@ const goToShop = () => { activeSection.value = "shop"; };
                 v-else-if="activeSection === 'tools'" />
               <InventoryModalAquarium
                 v-else-if="activeSection === 'tank'" />
+              <InventoryModalGoals
+                v-else-if="activeSection === 'goals'" />
             </div>
           </div>
         </div>

@@ -9,7 +9,7 @@ const hasOpenedStore = ref(false);
 
 const toast = useToast();
 
-type Section = "fish" | "shop" | "tools" | "tank";
+type Section = "fish" | "shop" | "tools" | "tank" | "goals";
 
 const menuItems = [
   [
@@ -76,6 +76,14 @@ const collectorButtonLabel = computed(() =>
 );
 const canSweep = computed(() => collectorReady.value && pendingDrops.value > 0);
 
+const autoFeederLabel = computed(() => {
+  if (!game.autoFeeder.owned) return "🤖";
+  if (!game.autoFeeder.active) return "🤖 Off";
+  const elapsed = now.value.getTime() - game.autoFeeder.lastFeedTime;
+  const remaining = Math.max(0, Math.ceil((game.autoFeeder.feedInterval - elapsed) / 1000));
+  return remaining > 0 ? `🤖 ${remaining}s` : "🤖 Now";
+});
+
 const boostBadges = computed(
   () =>
     game.activeBoosts
@@ -113,6 +121,16 @@ const hungryFishCount = computed(
   () => game.fish.filter((f) => f.hunger < CARE_THRESHOLD).length
 );
 
+// ── Pending mission claimable count ───────────────────────────────────────
+const pendingMissionCount = computed(
+  () =>
+    game.dailyState.missions.filter((m) => {
+      if (m.claimed) return false;
+      const def = MISSION_POOL.find((d) => d.id === m.id);
+      return def && m.progress >= def.goal;
+    }).length
+);
+
 // ── Tutorial ───────────────────────────────────────────────────────────────
 const tutorialStep = computed(() => {
   if (!game.hasEverFed) return 0;
@@ -122,9 +140,10 @@ const tutorialStep = computed(() => {
 });
 
 const tutorialMessage = computed(() => {
-  if (tutorialStep.value === 0) return "👆 Tap the tank to drop food for your fish!";
-  if (tutorialStep.value === 1) return "💰 Tap a glowing coin to collect it!";
-  if (tutorialStep.value === 2) return "🛒 Open the Shop below to buy more fish and upgrades!";
+  const firstName = game.fish[0]?.name ?? "your fish";
+  if (tutorialStep.value === 0) return `🐟 ${firstName} is hungry! Tap the tank to drop food (0.5 coins/flake).`;
+  if (tutorialStep.value === 1) return `💰 ${firstName} earned a coin! Tap it to collect.`;
+  if (tutorialStep.value === 2) return "🛒 Open the Shop to buy more fish and upgrades!";
   return "";
 });
 
@@ -177,6 +196,95 @@ watch(
   },
   { immediate: true }
 );
+
+// ── Care streak popups ─────────────────────────────────────────────────────
+watch(
+  () => game.pendingStreakPop,
+  (pop) => {
+    if (!pop) return;
+    const flames = "🔥".repeat(Math.min(pop.streak, 5));
+    toast.add({
+      title: `${pop.fishName} is on a streak! ${flames}`,
+      description: `Care streak ${pop.streak} — bonus coins incoming!`,
+      color: "warning",
+      duration: 2500,
+    });
+    game.clearStreakPop();
+  }
+);
+
+// ── Low-funds warning (one-time per session) ───────────────────────────────
+const hasShownLowFundsWarning = ref(false);
+watch(
+  () => game.coins,
+  (coins) => {
+    if (
+      !hasShownLowFundsWarning.value &&
+      coins < MAINTENANCE_WARNING_THRESHOLD &&
+      coins >= 0 &&
+      game.fish.length > 0
+    ) {
+      hasShownLowFundsWarning.value = true;
+      toast.add({
+        title: "Funds running low ⚠️",
+        description: "Your tank costs coins to run. Feed fish to keep earnings up — check the Tank tab for details.",
+        color: "warning",
+        duration: 8000,
+      });
+    }
+  }
+);
+
+// ── Daily login bonus ─────────────────────────────────────────────────────
+watch(
+  () => game.pendingDailyBonus,
+  (bonus) => {
+    if (bonus <= 0) return;
+    const streak = game.dailyState.loginStreak;
+    toast.add({
+      title: streak === 1 ? "Welcome! 🌅 Daily Bonus" : `Day ${streak} Streak! 🌅`,
+      description: `+${bonus} coins added to your tank.`,
+      color: "success",
+      duration: 5000,
+    });
+    game.clearDailyBonus();
+  },
+  { immediate: true }
+);
+
+// ── Achievement unlocks ───────────────────────────────────────────────────
+watch(
+  () => game.pendingAchievementUnlocks.length,
+  () => {
+    let id: string | null;
+    while ((id = game.shiftAchievementUnlock()) !== null) {
+      const def = ACHIEVEMENT_DEFINITIONS.find((a) => a.id === id);
+      if (!def) continue;
+      toast.add({
+        title: `${def.icon} Achievement Unlocked!`,
+        description: `${def.name} — ${def.desc}`,
+        color: "warning",
+        duration: 5000,
+      });
+    }
+  }
+);
+
+// ── Visitor arrival toast ─────────────────────────────────────────────────
+watch(
+  () => game.pendingVisitorArrival,
+  (val) => {
+    if (!val) return;
+    const name = game.visitor?.name ?? "A rare visitor";
+    toast.add({
+      title: `⭐ ${name} has arrived!`,
+      description: "A rare fish is swimming through your tank. Click it to collect a bonus!",
+      color: "warning",
+      duration: 5000,
+    });
+    game.clearVisitorArrival();
+  }
+);
 </script>
 
 <template>
@@ -205,6 +313,9 @@ watch(
         <span class="text-sm font-semibold">🍽️ {{ avg }}</span>
         <span v-if="game.coinMultiplier > 1" class="text-sm font-semibold text-success">
           ×{{ game.coinMultiplier.toFixed(2) }}
+        </span>
+        <span v-if="game.prestigeLevel > 0" class="text-sm font-semibold text-indigo-400">
+          ✨P{{ game.prestigeLevel }}
         </span>
         <div v-if="boostBadges.length" class="flex flex-wrap gap-2">
           <UBadge
@@ -235,7 +346,7 @@ watch(
           size="xs"
           :variant="game.autoFeeder.active ? 'solid' : 'outline'"
           :color="game.autoFeeder.active ? 'success' : 'neutral'"
-          :label="game.autoFeeder.active ? '🤖 On' : '🤖 Off'"
+          :label="autoFeederLabel"
           @click="game.toggleAutoFeeder()" />
         <div
           v-if="collectorHasUpgrade"
@@ -248,6 +359,13 @@ watch(
             :label="collectorButtonLabel"
             @click="sweepCollector" />
         </div>
+        <UButton
+          v-if="pendingDrops > 5 && !collectorHasUpgrade"
+          class="w-fit shadow-xl"
+          size="xs"
+          color="warning"
+          :label="`💰 Collect All (${pendingDrops})`"
+          @click="game.collectAll()" />
       </div>
     </div>
 
@@ -303,6 +421,20 @@ watch(
           <span class="text-base leading-none">🌊</span>
           <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Tank</span>
         </button>
+        <!-- Goals -->
+        <div class="relative">
+          <button
+            class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+            @click="openSection('goals')">
+            <span class="text-base leading-none">🏆</span>
+            <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Goals</span>
+          </button>
+          <span
+            v-if="pendingMissionCount > 0"
+            class="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 bg-yellow-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
+            {{ pendingMissionCount }}
+          </span>
+        </div>
       </div>
     </div>
 

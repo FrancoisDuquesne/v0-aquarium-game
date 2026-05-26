@@ -29,9 +29,14 @@ const dropAnchors = new Map<
 >();
 
 const coinPopups = ref<{ id: number; value: number; x: number; y: number }[]>([]);
+const deathAnims = ref<{ id: number; type: string; x: number; y: number }[]>([]);
+const screenFlash = ref(false);
+
+const { playFeedSound, playCoinSound } = useGameAudio();
 
 const activeFishIds = new Set<number>();
 const fishHunger = new Map<number, number>();
+const fishTypes = new Map<number, string>();
 const flakesToRemove: number[] = [];
 let frameHandle: number | null = null;
 
@@ -75,10 +80,6 @@ const placedDecorations = computed(
     }>
 );
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
 onMounted(() => {
   const ro = new ResizeObserver(() => {
     if (!container.value) return;
@@ -102,7 +103,11 @@ onMounted(() => {
     });
   }
   const loop = (ts: number) => {
-    tick(ts);
+    try {
+      tick(ts);
+    } catch (err) {
+      console.error("[AquariumDisplay] RAF tick error:", err);
+    }
     frameHandle = requestAnimationFrame(loop);
   };
   frameHandle = requestAnimationFrame(loop);
@@ -142,10 +147,12 @@ function tick(ts: number) {
 
   activeFishIds.clear();
   fishHunger.clear();
+  fishTypes.clear();
 
   game.fish.forEach((f) => {
     activeFishIds.add(f.id);
     fishHunger.set(f.id, f.hunger);
+    fishTypes.set(f.id, f.type);
     if (!positions.has(f.id)) positions.set(f.id, { x: f.x, y: f.y });
     if (!velocities.has(f.id))
       velocities.set(f.id, {
@@ -175,6 +182,8 @@ function tick(ts: number) {
       nextWaypointAt.delete(id);
       faces.delete(id);
       fishEls.delete(id);
+      fishTypes.delete(id);
+      game.livePositions.delete(id);
     }
   }
 
@@ -211,16 +220,54 @@ function tick(ts: number) {
 
   positions.forEach((pos, id) => {
     let chasingSinkingFlake = false;
+    const species = fishTypes.get(id) ?? "goldfish";
+    const profile = SPECIES_PROFILES[species] ?? SPECIES_PROFILES.goldfish;
     const dueAt = nextWaypointAt.get(id) || now;
     if (now >= dueAt) {
-      const next = generateWaypoint(pos.x, pos.y, FISH_CONFIG.LEVY_MU);
+      let next = generateWaypoint(pos.x, pos.y, profile.levyMu);
+
+      // Depth bias — nudge waypoint toward species' preferred depth
+      if (profile.depthBias !== undefined) {
+        next.y = next.y * 0.5 + profile.depthBias * 0.5;
+        next.y = clamp(next.y, FISH_CONFIG.BOUNDARY_TOP, FISH_CONFIG.BOUNDARY_BOTTOM);
+      }
+
+      // Schooling — neons, guppies, cherry-barbs, tiger-barbs drift toward nearby same-species
+      if (profile.schooling) {
+        let sx = 0, sy = 0, count = 0;
+        game.fish.forEach((f) => {
+          if (f.id === id || f.type !== species) return;
+          const fp = positions.get(f.id);
+          if (!fp) return;
+          const d = Math.hypot(fp.x - pos.x, fp.y - pos.y);
+          if (d < 28) { sx += fp.x; sy += fp.y; count++; }
+        });
+        if (count > 0) {
+          next.x = next.x * 0.55 + (sx / count) * 0.45;
+          next.y = next.y * 0.55 + (sy / count) * 0.45;
+        }
+      }
+
+      // Territorial — bettas and jewel-cichlids steer away from same-species
+      if (profile.territorial) {
+        game.fish.forEach((f) => {
+          if (f.id === id || f.type !== species) return;
+          const fp = positions.get(f.id);
+          if (!fp) return;
+          const d = Math.hypot(fp.x - pos.x, fp.y - pos.y);
+          if (d < 22) {
+            const awayX = pos.x + (pos.x - fp.x) * 0.6;
+            const awayY = pos.y + (pos.y - fp.y) * 0.6;
+            next.x = clamp(awayX, FISH_CONFIG.BOUNDARY_LEFT, FISH_CONFIG.BOUNDARY_RIGHT);
+            next.y = clamp(awayY, FISH_CONFIG.BOUNDARY_TOP, FISH_CONFIG.BOUNDARY_BOTTOM);
+          }
+        });
+      }
+
       targets.set(id, next);
-      const delay =
-        FISH_CONFIG.WAYPOINT_MIN_INTERVAL +
-        Math.random() *
-          (FISH_CONFIG.WAYPOINT_MAX_INTERVAL -
-            FISH_CONFIG.WAYPOINT_MIN_INTERVAL);
-      nextWaypointAt.set(id, now + delay);
+      const wMin = profile.waypointMin ?? FISH_CONFIG.WAYPOINT_MIN_INTERVAL;
+      const wMax = profile.waypointMax ?? FISH_CONFIG.WAYPOINT_MAX_INTERVAL;
+      nextWaypointAt.set(id, now + wMin + Math.random() * (wMax - wMin));
       faces.set(id, next.x > pos.x ? 1 : -1);
     }
 
@@ -267,7 +314,7 @@ function tick(ts: number) {
     const dx = softX - pos.x;
     const dy = softY - pos.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const maxSpeed = 16;
+    const maxSpeed = 16 * (profile.speedScale ?? 1);
     const slowRadius = 8;
     const minSpeed = chasingSinkingFlake ? maxSpeed * 0.6 : 0;
     const desiredSpeed = Math.min(
@@ -300,6 +347,7 @@ function tick(ts: number) {
       Math.min(FISH_CONFIG.BOUNDARY_BOTTOM, pos.y)
     );
     velocities.set(id, vel);
+    game.livePositions.set(id, { x: pos.x, y: pos.y });
 
     const node = fishEls.get(id);
     if (node) {
@@ -345,7 +393,10 @@ function addFlakeAtPercent(xPct: number, yPct: number, chargeCoins = true) {
   };
   flakes.set(id, fl);
   flakeIds.value = [...flakeIds.value, id].slice(-MAX_FLAKES);
-  if (chargeCoins) game.chargeFlake();
+  if (chargeCoins) {
+    game.chargeFlake();
+    playFeedSound();
+  }
 }
 
 function addFlakeAt(clientX: number, clientY: number) {
@@ -370,6 +421,23 @@ watch(
     const keep = new Set(ids);
     Array.from(dropAnchors.keys()).forEach((id) => {
       if (!keep.has(id)) dropAnchors.delete(id);
+    });
+  }
+);
+
+// Death animations — capture position before fish is cleaned from positions Map
+watch(
+  () => game.pendingDeaths.length,
+  () => {
+    game.pendingDeaths.forEach((d) => {
+      if (deathAnims.value.some((a) => a.id === d.id)) return;
+      const pos = positions.get(d.id);
+      const x = pos?.x ?? 50;
+      const y = pos?.y ?? 50;
+      deathAnims.value = [...deathAnims.value, { id: d.id, type: d.type, x, y }];
+      setTimeout(() => {
+        deathAnims.value = deathAnims.value.filter((a) => a.id !== d.id);
+      }, 2200);
     });
   }
 );
@@ -409,6 +477,14 @@ function coinStyle(drop: CoinDropView) {
   };
 }
 
+function popupClass(value: number) {
+  if (value >= 500) return "text-3xl font-extrabold text-yellow-100 drop-shadow-lg";
+  if (value >= 100) return "text-2xl font-extrabold text-yellow-200 drop-shadow-lg";
+  if (value >= 50) return "text-lg font-bold text-yellow-300 drop-shadow";
+  if (value >= 10) return "text-base font-bold text-yellow-300 drop-shadow";
+  return "text-sm font-semibold text-yellow-400";
+}
+
 function collectDrop(id: number) {
   const drop = game.coinDrops.find((d) => d.id === id);
   if (drop) {
@@ -416,6 +492,11 @@ function collectDrop(id: number) {
     setTimeout(() => {
       coinPopups.value = coinPopups.value.filter((p) => p.id !== id);
     }, 900);
+    playCoinSound(drop.type as any);
+    if (drop.type === "crown" || drop.type === "chest") {
+      screenFlash.value = true;
+      setTimeout(() => { screenFlash.value = false; }, 350);
+    }
   }
   game.collectCoinDrop(id);
 }
@@ -430,6 +511,31 @@ function onClick(e: MouseEvent) {
       addFlakeAt(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
     }
   } else addFlakeAt(e.clientX, e.clientY);
+}
+
+function onPlayWithFish(fishId: number) {
+  game.playWithFish(fishId);
+}
+
+function collectVisitor() {
+  if (!game.visitor || game.visitor.fed) return;
+  const reward = game.feedVisitor();
+  if (reward > 0) {
+    // Estimate current X from animation progress
+    const elapsed = Date.now() - game.visitor.spawnedAt;
+    const progress = Math.min(1, elapsed / VISITOR_DURATION_MS);
+    const estimatedX = clamp(-8 + progress * 116, 2, 98);
+    coinPopups.value.push({
+      id: game.visitor.spawnedAt,
+      value: reward,
+      x: estimatedX,
+      y: game.visitor.y,
+    });
+    setTimeout(() => {
+      coinPopups.value = coinPopups.value.filter((p) => p.id !== game.visitor?.spawnedAt);
+    }, 1200);
+    playCoinSound("chest");
+  }
 }
 
 watch(
@@ -471,7 +577,8 @@ watch(
       :boredom="f.boredom"
       :care-streak="f.careStreak"
       :is-being-fed="game.feedingFishId === f.id"
-      :ref="setFishRef(f.id)" />
+      :ref="setFishRef(f.id)"
+      @play="onPlayWithFish" />
 
     <div
       v-for="id in flakeIds"
@@ -494,29 +601,67 @@ watch(
       </button>
     </TransitionGroup>
 
-    <!-- Coin collect value popups -->
+    <!-- Coin collect value popups (size-scaled) -->
     <div
       v-for="popup in coinPopups"
       :key="popup.id"
-      class="coin-popup absolute pointer-events-none font-bold text-yellow-300 text-sm z-30 drop-shadow"
+      class="coin-popup absolute pointer-events-none z-30"
+      :class="popupClass(popup.value)"
       :style="{ left: popup.x + '%', top: popup.y + '%' }">
       +{{ popup.value }}
+    </div>
+
+    <!-- Death animations -->
+    <div
+      v-for="anim in deathAnims"
+      :key="anim.id"
+      class="absolute pointer-events-none z-20 fish-dying"
+      :style="{ left: anim.x + '%', top: anim.y + '%', transform: 'translate(-50%, -50%)' }">
+      <FishSvg :type="anim.type" :width="40" :height="28" />
     </div>
 
     <div
       v-for="decor in placedDecorations"
       :key="decor.id"
       class="absolute pointer-events-none select-none drop-shadow-lg"
+      :class="`decor-${decor.id}`"
       :style="decor.style"
       :aria-label="decor.label"
       :title="decor.label">
       <span class="text-5xl md:text-6xl">{{ decor.emoji }}</span>
     </div>
 
+    <!-- Rare visitor fish -->
+    <Transition name="visitor-appear">
+      <div
+        v-if="game.visitor && !game.visitor.fed"
+        class="absolute z-10 visitor-fish cursor-pointer"
+        :style="{
+          top: game.visitor.y + '%',
+          transform: 'translateY(-50%)',
+          '--visitor-dur': (VISITOR_DURATION_MS / 1000) + 's',
+        }"
+        @click.stop="collectVisitor">
+        <div class="flex flex-col items-center gap-1">
+          <div class="visitor-badge">⭐ {{ game.visitor.name }}</div>
+          <div class="visitor-glow">
+            <FishSvg :type="game.visitor.type" :width="52" :height="36" class="visitor-svg" />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <BubblesLayer />
     <div
       class="absolute inset-0 bg-gradient-to-br from-cyan-100/3 via-transparent to-blue-100/3 pointer-events-none animate-pulse"
       style="animation-duration: 4s" />
+
+    <!-- Screen flash for high-value coin collection -->
+    <Transition name="flash">
+      <div
+        v-if="screenFlash"
+        class="absolute inset-0 pointer-events-none z-40 bg-yellow-200/20" />
+    </Transition>
   </div>
 </template>
 
@@ -531,18 +676,22 @@ watch(
   animation-fill-mode: forwards;
 }
 
-.coin-drop-enter-active,
-.coin-drop-leave-active {
-  transition: opacity 0.2s ease;
+.coin-drop-enter-active {
+  transition: opacity 0.15s ease;
 }
 
-.coin-drop-enter-from,
-.coin-drop-leave-to {
+.coin-drop-enter-from {
   opacity: 0;
 }
 
 .coin-drop-leave-active {
+  transition: opacity 0.45s ease, transform 0.45s ease;
   pointer-events: none;
+}
+
+.coin-drop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.4) translateY(-14px);
 }
 
 @keyframes coin-fall {
@@ -554,10 +703,109 @@ watch(
   }
 }
 
+/* Fish death — flips upside-down and floats to top */
+.fish-dying {
+  animation: fishDie 2.2s ease-in forwards;
+}
+
+@keyframes fishDie {
+  0%   { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
+  30%  { transform: translate(-50%, -50%) rotate(180deg); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 160px)) rotate(180deg); opacity: 0; }
+}
+
+/* Decoration sway animations */
+.decor-kelp-forest span {
+  display: inline-block;
+  transform-origin: center bottom;
+  animation: kelpSway 3s ease-in-out infinite alternate;
+}
+
+.decor-coral-arch span {
+  display: inline-block;
+  animation: coralPulse 4s ease-in-out infinite alternate;
+}
+
+.decor-bubble-column span {
+  display: inline-block;
+  animation: bubbleRise 2.5s ease-in-out infinite;
+}
+
+@keyframes kelpSway {
+  from { transform: rotate(-8deg); }
+  to   { transform: rotate(8deg); }
+}
+
+@keyframes coralPulse {
+  from { filter: brightness(0.9) saturate(1); }
+  to   { filter: brightness(1.15) saturate(1.3); }
+}
+
+@keyframes bubbleRise {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  50%  { transform: translateY(-6px) scale(1.05); opacity: 0.85; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Rare visitor fish — drifts from left edge to right edge */
+.visitor-fish {
+  animation: visitorDrift var(--visitor-dur, 180s) linear forwards;
+  pointer-events: auto;
+}
+
+@keyframes visitorDrift {
+  from { left: -8%; }
+  to   { left: 110%; }
+}
+
+.visitor-glow {
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.8)) drop-shadow(0 0 16px rgba(250, 204, 21, 0.4));
+}
+
+.visitor-svg {
+  filter: hue-rotate(25deg) brightness(1.3) saturate(1.6);
+}
+
+.visitor-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fef08a;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(250,204,21,0.4);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.visitor-appear-enter-active { transition: opacity 0.6s ease; }
+.visitor-appear-leave-active { transition: opacity 0.4s ease; }
+.visitor-appear-enter-from, .visitor-appear-leave-to { opacity: 0; }
+
+/* Screen flash transition */
+.flash-enter-active, .flash-leave-active {
+  transition: opacity 0.35s ease;
+}
+.flash-enter-from { opacity: 0; }
+.flash-leave-to   { opacity: 0; }
+
 @media (prefers-reduced-motion: reduce) {
   .coin-drop {
     animation-duration: 1ms;
     animation-timing-function: linear;
+  }
+  .fish-dying,
+  .decor-kelp-forest span,
+  .decor-coral-arch span,
+  .decor-bubble-column span,
+  .visitor-fish {
+    animation: none;
+  }
+  .flash-enter-active,
+  .flash-leave-active,
+  .visitor-appear-enter-active,
+  .visitor-appear-leave-active {
+    transition: none;
   }
 }
 </style>

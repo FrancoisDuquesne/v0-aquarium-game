@@ -20,13 +20,13 @@ const showSpeciesRow = computed(() => speciesKeys.value.length >= 2);
 
 const healthyFish = computed(() => game.fish.filter((f) => f.hunger >= HAPPY_THRESHOLD).length);
 const hungryFish  = computed(() => game.fish.filter((f) => f.hunger < CARE_THRESHOLD).length);
-const boredFish   = computed(() => game.fish.filter((f) => f.boredom > BOREDOM_HIGH_THRESHOLD).length);
+const unhappyFish = computed(() => game.fish.filter((f) => f.boredom > BOREDOM_HIGH_THRESHOLD).length);
 
 const statusFilters = computed(() => [
   { id: "all",     label: `All · ${game.fish.length}` },
   { id: "healthy", label: `❤️ ${healthyFish.value}`   },
   { id: "hungry",  label: `🍽️ ${hungryFish.value}`   },
-  { id: "bored",   label: `😴 ${boredFish.value}`    },
+  { id: "bored",   label: `😟 ${unhappyFish.value}`  },
 ]);
 
 const filtered = computed(() =>
@@ -63,7 +63,7 @@ function fishName(type: string): string {
 const sortOptions = [
   { id: "hunger",  label: "Hunger"  },
   { id: "health",  label: "Health"  },
-  { id: "boredom", label: "Boredom" },
+  { id: "boredom", label: "Mood" },
   { id: "type",    label: "Species" },
   { id: "id",      label: "Age"     },
 ];
@@ -163,7 +163,12 @@ const sortOptions = [
                 {{ f.name || fishName(f.type) }}
                 <span v-if="f.careStreak > 0" class="text-orange-400 text-[10px]"> 🔥{{ f.careStreak }}</span>
               </p>
-              <p class="text-[10px] text-white/35 truncate">{{ fishName(f.type) }}</p>
+              <p class="text-[10px] text-white/35 truncate">
+                {{ fishName(f.type) }}
+                <span v-if="f.personality" :title="PERSONALITY_PROFILES[f.personality as PersonalityType]?.label">
+                  · {{ PERSONALITY_PROFILES[f.personality as PersonalityType]?.icon }}
+                </span>
+              </p>
             </div>
           </div>
 
@@ -188,13 +193,13 @@ const sortOptions = [
               <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.hunger) }}</span>
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] w-3 text-center leading-none">😴</span>
+              <span class="text-[10px] w-3 text-center leading-none">😊</span>
               <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
                 <div class="h-full rounded-full transition-all duration-500"
                   :class="f.boredom < 30 ? 'bg-green-400' : f.boredom < BOREDOM_HIGH_THRESHOLD ? 'bg-yellow-400' : 'bg-red-400'"
-                  :style="{ width: f.boredom + '%' }" />
+                  :style="{ width: (100 - f.boredom) + '%' }" />
               </div>
-              <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.boredom) }}</span>
+              <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(100 - f.boredom) }}</span>
             </div>
           </div>
 

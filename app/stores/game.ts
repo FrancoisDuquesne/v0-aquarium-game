@@ -14,6 +14,33 @@ interface FishData {
   speed: number;
   coinProgress: number;
   careStreak: number;
+  personality?: string;
+}
+
+interface DailyMission {
+  id: string;
+  progress: number;
+  claimed: boolean;
+}
+
+interface DailyState {
+  date: string;
+  loginStreak: number;
+  bonusClaimed: boolean;
+  missions: DailyMission[];
+  feedCount: number;
+  coinsCollected: number;
+  dropsCollected: number;
+}
+
+interface VisitorState {
+  type: string;
+  name: string;
+  spawnedAt: number;
+  expiresAt: number;
+  fed: boolean;
+  reward: number;
+  y: number; // vertical position % (20–65)
 }
 interface AutoFeeder {
   owned: boolean;
@@ -77,6 +104,7 @@ interface GameState {
   selectedTool: ToolType;
   feedingFishId: number | null;
   hasEverFed: boolean;
+  hasEverCollected: boolean;
   background: string;
   coinCollector: CoinCollectorState;
   upgrades: UpgradesState;
@@ -84,6 +112,13 @@ interface GameState {
   activeBoosts: ActiveBoost[];
   lastMaintenanceTick: number;
   purchasedExpansions: string[];
+  unlockedAchievements: string[];
+  totalCoinsCollected: number;
+  totalFeedCount: number;
+  maxCareStreakEver: number;
+  dailyState: DailyState;
+  lastVisitorDate: string;
+  prestigeLevel: number;
 }
 
 const dropTimers = new Set<number>();
@@ -163,12 +198,12 @@ function resolveActiveBoosts(value: unknown): ActiveBoost[] {
     .filter(Boolean) as ActiveBoost[];
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function randomFishName(): string {
-  return FISH_NAMES[Math.floor(Math.random() * FISH_NAMES.length)];
+function randomFishName(excluded: string[] = []): string {
+  const pool = excluded.length
+    ? FISH_NAMES.filter((n) => !excluded.includes(n))
+    : FISH_NAMES;
+  const source = pool.length ? pool : FISH_NAMES;
+  return source[Math.floor(Math.random() * source.length)];
 }
 
 function normalizeFish(entry: Partial<FishData>): FishData {
@@ -185,7 +220,24 @@ function normalizeFish(entry: Partial<FishData>): FishData {
     coinProgress:
       typeof entry.coinProgress === "number" ? entry.coinProgress : 0,
     careStreak: typeof entry.careStreak === "number" ? entry.careStreak : 0,
+    personality:
+      typeof entry.personality === "string" && entry.personality.length
+        ? entry.personality
+        : PERSONALITY_POOL[Math.floor(Math.random() * PERSONALITY_POOL.length)],
   };
+}
+
+function generateDailyMissions(): DailyMission[] {
+  const pool = [...MISSION_POOL];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, DAILY_MISSION_COUNT).map((def) => ({
+    id: def.id,
+    progress: 0,
+    claimed: false,
+  }));
 }
 
 function collectorStats(level: number) {
@@ -196,7 +248,7 @@ function collectorStats(level: number) {
 }
 
 export const useGameStore = defineStore("game", () => {
-  const coins = ref(1000);
+  const coins = ref(150);
   const fish = ref<FishData[]>([
     normalizeFish({ id: 1, type: "goldfish", name: "Goldie", x: 20, y: 50, hunger: 80, speed: 2, coinProgress: 0, careStreak: 0 }),
     normalizeFish({ id: 2, type: "angelfish", name: "Marina", x: 60, y: 30, hunger: 60, speed: 1.5, coinProgress: 0, careStreak: 0 }),
@@ -212,6 +264,7 @@ export const useGameStore = defineStore("game", () => {
   const pendingDeaths = ref<{ id: number; name: string; type: string }[]>([]);
   const pendingOfflineReward = ref(0);
   const pendingStorageWarning = ref(false);
+  const pendingStreakPop = ref<{ fishId: number; fishName: string; streak: number } | null>(null);
   const purchasedExpansions = ref<string[]>([]);
   const tankCapacity = computed(() => {
     const extraSlots = TANK_EXPANSION_ITEMS
@@ -231,27 +284,64 @@ export const useGameStore = defineStore("game", () => {
     DEFAULT_BOOSTS.map((boost) => ({ ...boost })) as ActiveBoost[]
   );
 
-  const hungerDecayPerTick = computed(() =>
-    Math.max(
+  const unlockedAchievements = ref<string[]>([]);
+  const totalCoinsCollected = ref(0);
+  const totalFeedCount = ref(0);
+  const maxCareStreakEver = ref(0);
+  const dailyState = ref<DailyState>({
+    date: "",
+    loginStreak: 0,
+    bonusClaimed: false,
+    missions: [],
+    feedCount: 0,
+    coinsCollected: 0,
+    dropsCollected: 0,
+  });
+  const pendingAchievementUnlocks = ref<string[]>([]);
+  const pendingDailyBonus = ref(0);
+  const visitor = ref<VisitorState | null>(null);
+
+  // Plain (non-reactive) map written by AquariumDisplay each RAF frame; used by
+  // spawnCoinDrop so coin origins match actual on-screen fish positions.
+  const livePositions = new Map<number, { x: number; y: number }>();
+  const visitorSpawnAfterMs = ref(0);
+  const visitorSessionStartMs = ref(0);
+  const lastVisitorDate = ref("");
+  const pendingVisitorArrival = ref(false);
+  const prestigeLevel = ref(0);
+
+  const backgroundEffect = computed(() => BACKGROUND_EFFECTS[background.value] ?? null);
+
+  const hungerDecayPerTick = computed(() => {
+    const bgMod = backgroundEffect.value?.hungerDecayMod ?? 0;
+    return Math.max(
       MIN_HUNGER_DECAY,
-      BASE_HUNGER_DECAY - (upgrades.gourmetFeed ? GOURMET_DECAY_REDUCTION : 0)
-    )
-  );
+      BASE_HUNGER_DECAY - (upgrades.gourmetFeed ? GOURMET_DECAY_REDUCTION : 0) - bgMod
+    );
+  });
   const feedBonus = computed(() =>
     upgrades.gourmetFeed ? GOURMET_FEED_BONUS : 0
   );
   const dropLifetimeMs = computed(
-    () => BASE_DROP_LIFETIME + (upgrades.clarityFilters ? 4_000 : 0)
+    () =>
+      BASE_DROP_LIFETIME +
+      (upgrades.clarityFilters ? 4_000 : 0) +
+      (backgroundEffect.value?.dropLifetimeBonus ?? 0)
   );
 
   const coinMultiplier = computed(() => {
     let multiplier = 1;
     if (upgrades.luxeDecor) multiplier *= 1.15;
+    multiplier *= 1 + prestigeLevel.value * PRESTIGE_COIN_BONUS_PER_LEVEL;
     activeBoosts.value.forEach((boost) => {
       multiplier *= boost.multiplier;
     });
     return multiplier;
   });
+
+  const canPrestige = computed(
+    () => fish.value.length >= PRESTIGE_MIN_FISH && coins.value >= PRESTIGE_MIN_COINS
+  );
 
   const averageHunger = computed(() =>
     fish.value.length
@@ -338,13 +428,74 @@ export const useGameStore = defineStore("game", () => {
       purchasedExpansions.value = Array.isArray(parsed.purchasedExpansions)
         ? parsed.purchasedExpansions.filter((id) => typeof id === "string")
         : [];
+
+      // ── Achievements & stats ────────────────────────────────────────────────
+      unlockedAchievements.value = Array.isArray(parsed.unlockedAchievements)
+        ? (parsed.unlockedAchievements as unknown[]).filter((id): id is string => typeof id === "string")
+        : [];
+      totalCoinsCollected.value = typeof parsed.totalCoinsCollected === "number" ? parsed.totalCoinsCollected : 0;
+      totalFeedCount.value = typeof parsed.totalFeedCount === "number" ? parsed.totalFeedCount : 0;
+      maxCareStreakEver.value = typeof parsed.maxCareStreakEver === "number" ? parsed.maxCareStreakEver : 0;
+
+      // ── Daily state ─────────────────────────────────────────────────────────
+      const today = new Date().toISOString().slice(0, 10);
+      const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+      const savedDaily = parsed.dailyState as Partial<DailyState> | undefined;
+
+      if (!savedDaily?.date) {
+        // First ever load — welcome bonus
+        dailyState.value = { date: today, loginStreak: 1, bonusClaimed: true, missions: generateDailyMissions(), feedCount: 0, coinsCollected: 0, dropsCollected: 0 };
+        const bonus = LOGIN_BONUS_BASE;
+        resolvedCoins += bonus;
+        pendingDailyBonus.value = bonus;
+      } else if (savedDaily.date === today) {
+        // Same day — restore as-is
+        dailyState.value = {
+          date: today,
+          loginStreak: savedDaily.loginStreak ?? 1,
+          bonusClaimed: savedDaily.bonusClaimed ?? false,
+          missions: Array.isArray(savedDaily.missions)
+            ? savedDaily.missions.map((m) => ({ id: m.id, progress: m.progress ?? 0, claimed: m.claimed ?? false }))
+            : generateDailyMissions(),
+          feedCount: savedDaily.feedCount ?? 0,
+          coinsCollected: savedDaily.coinsCollected ?? 0,
+          dropsCollected: savedDaily.dropsCollected ?? 0,
+        };
+      } else {
+        // New day — streak and bonus
+        const prevStreak = savedDaily.loginStreak ?? 0;
+        const newStreak = savedDaily.date === yesterday ? prevStreak + 1 : 1;
+        const bonus = Math.min(100, LOGIN_BONUS_BASE + Math.floor((newStreak - 1) / 3) * 10);
+        dailyState.value = { date: today, loginStreak: newStreak, bonusClaimed: true, missions: generateDailyMissions(), feedCount: 0, coinsCollected: 0, dropsCollected: 0 };
+        resolvedCoins += bonus;
+        pendingDailyBonus.value = bonus;
+      }
+      coins.value = resolvedCoins;
+
+      // ── Visitor & prestige ───────────────────────────────────────────────────
+      lastVisitorDate.value = typeof parsed.lastVisitorDate === "string" ? parsed.lastVisitorDate : "";
+      prestigeLevel.value = typeof parsed.prestigeLevel === "number" ? Math.max(0, parsed.prestigeLevel) : 0;
+      // Schedule visitor spawn for this session
+      visitorSessionStartMs.value = now;
+      visitorSpawnAfterMs.value =
+        VISITOR_SPAWN_DELAY_MIN_MS +
+        Math.random() * (VISITOR_SPAWN_DELAY_MAX_MS - VISITOR_SPAWN_DELAY_MIN_MS);
+      visitor.value = null; // don't persist visitors across sessions
+
+      // Retroactively unlock state-based achievements on first load
+      checkAchievements();
     } catch (error) {
       console.warn("[game] Unable to read saved state", error);
     }
+
+    window.addEventListener("pagehide", _flushSave);
   }
 
-  function save() {
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function _flushSave() {
     if (!process.client) return;
+    if (_saveTimer !== null) { clearTimeout(_saveTimer); _saveTimer = null; }
     const timestamp = Date.now();
     lastSaveTime.value = timestamp;
     const payload: GameState = {
@@ -364,6 +515,16 @@ export const useGameStore = defineStore("game", () => {
       activeBoosts: [...activeBoosts.value],
       lastMaintenanceTick: lastMaintenanceTick.value,
       purchasedExpansions: [...purchasedExpansions.value],
+      unlockedAchievements: [...unlockedAchievements.value],
+      totalCoinsCollected: totalCoinsCollected.value,
+      totalFeedCount: totalFeedCount.value,
+      maxCareStreakEver: maxCareStreakEver.value,
+      dailyState: {
+        ...dailyState.value,
+        missions: dailyState.value.missions.map((m) => ({ ...m })),
+      },
+      lastVisitorDate: lastVisitorDate.value,
+      prestigeLevel: prestigeLevel.value,
     };
     try {
       localStorage.setItem("aquarium-game", JSON.stringify(payload));
@@ -372,6 +533,105 @@ export const useGameStore = defineStore("game", () => {
         pendingStorageWarning.value = true;
       }
     }
+  }
+
+  function save() {
+    if (!process.client) return;
+    if (_saveTimer !== null) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(_flushSave, 1000);
+  }
+
+  function checkAchievements() {
+    const fishTypes = new Set(fish.value.map((f) => f.type));
+    const upgradeCount = Object.values(upgrades as Record<string, boolean>).filter(Boolean).length;
+    const isTankFull = fish.value.length >= tankCapacity.value;
+
+    for (const def of ACHIEVEMENT_DEFINITIONS) {
+      if (unlockedAchievements.value.includes(def.id)) continue;
+      let unlocked = false;
+      switch (def.condition) {
+        case "fish-count":      unlocked = fish.value.length >= (def.threshold ?? 1); break;
+        case "total-coins":     unlocked = totalCoinsCollected.value >= (def.threshold ?? 0); break;
+        case "care-streak":     unlocked = maxCareStreakEver.value >= (def.threshold ?? 1); break;
+        case "decor-count":     unlocked = decorations.value.length >= (def.threshold ?? 1); break;
+        case "upgrade-count":   unlocked = upgradeCount >= (def.threshold ?? 1); break;
+        case "species-count":   unlocked = fishTypes.size >= (def.threshold ?? 1); break;
+        case "auto-feeder":     unlocked = autoFeeder.owned; break;
+        case "expansion-owned": unlocked = purchasedExpansions.value.length > 0; break;
+        case "feed-count":      unlocked = totalFeedCount.value >= (def.threshold ?? 1); break;
+        case "tank-full":       unlocked = isTankFull; break;
+      }
+      if (unlocked) {
+        unlockedAchievements.value = [...unlockedAchievements.value, def.id];
+        pendingAchievementUnlocks.value = [...pendingAchievementUnlocks.value, def.id];
+      }
+    }
+  }
+
+  function updateMissionProgress(type: string, value: number) {
+    dailyState.value.missions.forEach((m) => {
+      if (m.claimed) return;
+      const def = MISSION_POOL.find((d) => d.id === m.id);
+      if (!def || def.type !== type) return;
+      m.progress = Math.min(def.goal, value);
+    });
+  }
+
+  function shiftAchievementUnlock(): string | null {
+    if (!pendingAchievementUnlocks.value.length) return null;
+    const [first, ...rest] = pendingAchievementUnlocks.value;
+    pendingAchievementUnlocks.value = rest;
+    return first;
+  }
+
+  function clearDailyBonus() {
+    pendingDailyBonus.value = 0;
+  }
+
+  function claimMission(id: string): number {
+    const missionState = dailyState.value.missions.find((m) => m.id === id);
+    if (!missionState || missionState.claimed) return 0;
+    const def = MISSION_POOL.find((d) => d.id === id);
+    if (!def || missionState.progress < def.goal) return 0;
+    missionState.claimed = true;
+    coins.value += def.reward;
+    save();
+    return def.reward;
+  }
+
+  function feedVisitor(): number {
+    if (!visitor.value || visitor.value.fed) return 0;
+    const reward = visitor.value.reward;
+    visitor.value.fed = true;
+    visitor.value.expiresAt = Date.now() + 4000; // linger briefly after feeding
+    coins.value += reward;
+    save();
+    return reward;
+  }
+
+  function buyMedicine(): boolean {
+    if (coins.value < MEDICINE_COST || !fish.value.length) return false;
+    coins.value -= MEDICINE_COST;
+    fish.value = fish.value.map((f) => ({
+      ...f,
+      health: Math.min(100, f.health + MEDICINE_HEAL_AMOUNT),
+    }));
+    save();
+    return true;
+  }
+
+  function doPrestige(): boolean {
+    if (!canPrestige.value) return false;
+    prestigeLevel.value++;
+    fish.value = [];
+    coinDrops.value = [];
+    coins.value = PRESTIGE_START_COINS + (prestigeLevel.value - 1) * PRESTIGE_START_BONUS;
+    save();
+    return true;
+  }
+
+  function clearVisitorArrival() {
+    pendingVisitorArrival.value = false;
   }
 
   function chargeFlake() {
@@ -393,14 +653,37 @@ export const useGameStore = defineStore("game", () => {
         CARE_STREAK_MAX
       );
       spawnCoinDrop(targetFish, 2 + targetFish.careStreak, "care");
+      pendingStreakPop.value = {
+        fishId: targetFish.id,
+        fishName: targetFish.name,
+        streak: targetFish.careStreak,
+      };
+      if (targetFish.careStreak > maxCareStreakEver.value) {
+        maxCareStreakEver.value = targetFish.careStreak;
+      }
     }
     feedingFishId.value = id;
     hasEverFed.value = true;
+    totalFeedCount.value++;
+    dailyState.value.feedCount++;
+    updateMissionProgress("feed", dailyState.value.feedCount);
+    checkAchievements();
 
     setTimeout(() => {
       if (feedingFishId.value === id) feedingFishId.value = null;
     }, 800);
 
+    save();
+  }
+
+  function playWithFish(id: number) {
+    const targetFish = fish.value.find((entry) => entry.id === id);
+    if (!targetFish) return;
+    targetFish.boredom = clamp(targetFish.boredom - 20, 0, 100);
+    feedingFishId.value = id;
+    setTimeout(() => {
+      if (feedingFishId.value === id) feedingFishId.value = null;
+    }, 600);
     save();
   }
 
@@ -418,13 +701,14 @@ export const useGameStore = defineStore("game", () => {
       normalizeFish({
         id,
         type,
-        name: randomFishName(),
+        name: randomFishName(fish.value.map((f) => f.name)),
         x: Math.random() * 80 + 10,
         y: Math.random() * 60 + 20,
         hunger: 100,
         speed: Math.random() * 2 + 1,
       })
     );
+    checkAchievements();
     save();
   }
 
@@ -433,6 +717,7 @@ export const useGameStore = defineStore("game", () => {
     if (purchasedExpansions.value.includes(id)) return false;
     coins.value -= cost;
     purchasedExpansions.value = [...purchasedExpansions.value, id];
+    checkAchievements();
     save();
     return true;
   }
@@ -447,6 +732,27 @@ export const useGameStore = defineStore("game", () => {
 
   function clearStorageWarning() {
     pendingStorageWarning.value = false;
+  }
+
+  function clearStreakPop() {
+    pendingStreakPop.value = null;
+  }
+
+  function collectAll() {
+    pruneCoinDrops();
+    const dropCountBefore = coinDrops.value.length;
+    const total = collectDrops(Infinity);
+    if (total > 0) {
+      if (!hasEverCollected.value) hasEverCollected.value = true;
+      totalCoinsCollected.value += total;
+      dailyState.value.coinsCollected += total;
+      dailyState.value.dropsCollected += dropCountBefore;
+      updateMissionProgress("collect-coins", dailyState.value.coinsCollected);
+      updateMissionProgress("collect-drops", dailyState.value.dropsCollected);
+      checkAchievements();
+      save();
+    }
+    return total;
   }
 
   function dropTypeFor(value: number): CoinDropType {
@@ -544,9 +850,13 @@ export const useGameStore = defineStore("game", () => {
     if (index === -1) return;
     const [drop] = coinDrops.value.splice(index, 1);
     coins.value = Math.round((coins.value + drop.value) * 100) / 100;
-    if (!hasEverCollected.value) {
-      hasEverCollected.value = true;
-    }
+    if (!hasEverCollected.value) hasEverCollected.value = true;
+    totalCoinsCollected.value += drop.value;
+    dailyState.value.coinsCollected += drop.value;
+    dailyState.value.dropsCollected++;
+    updateMissionProgress("collect-coins", dailyState.value.coinsCollected);
+    updateMissionProgress("collect-drops", dailyState.value.dropsCollected);
+    checkAchievements();
     save();
   }
 
@@ -604,6 +914,7 @@ export const useGameStore = defineStore("game", () => {
     if (coins.value < cost) return false;
     coins.value -= cost;
     upgrades[id] = true;
+    checkAchievements();
     save();
     return true;
   }
@@ -613,6 +924,7 @@ export const useGameStore = defineStore("game", () => {
     if (coins.value < cost) return false;
     coins.value -= cost;
     decorations.value = [...decorations.value, id];
+    checkAchievements();
     save();
     return true;
   }
@@ -658,6 +970,7 @@ export const useGameStore = defineStore("game", () => {
     autoFeeder.owned = true;
     autoFeeder.active = true;
     autoFeeder.lastFeedTime = Date.now();
+    checkAchievements();
     save();
   }
 
@@ -699,7 +1012,8 @@ export const useGameStore = defineStore("game", () => {
     const boredDecorReduction = decorations.value.length * BOREDOM_DECOR_REDUCTION;
 
     fish.value.forEach((entry) => {
-      const origin = { id: entry.id, x: entry.x, y: entry.y };
+      const live = livePositions.get(entry.id);
+      const origin = { id: entry.id, x: live?.x ?? entry.x, y: live?.y ?? entry.y };
       const hungerLoss = hungerDecayPerTick.value;
       const nextHunger = Math.max(0, entry.hunger - hungerLoss);
       let careStreak = entry.careStreak;
@@ -717,11 +1031,14 @@ export const useGameStore = defineStore("game", () => {
       const nextHealth = clamp(entry.health + healthDelta, 0, 100);
 
       // Boredom — floored at 20% of base rate to prevent permanent nullification
+      const personalityMod = entry.personality
+        ? (PERSONALITY_PROFILES[entry.personality as PersonalityType]?.boredomMod ?? 1.0)
+        : 1.0;
       const boredNet = BOREDOM_BASE_RATE - boredDecorReduction - friendCountCapped * BOREDOM_FRIEND_REDUCTION;
-      const boredRate = Math.max(BOREDOM_BASE_RATE * 0.2, boredNet);
+      const boredRate = Math.max(BOREDOM_BASE_RATE * 0.2, boredNet) * personalityMod;
       const nextBoredom = clamp(entry.boredom + boredRate, 0, 100);
 
-      // Coins
+      // Coins (with background ecosystem bonus)
       let progress = entry.coinProgress;
       if (nextHunger >= CARE_THRESHOLD) {
         const baseRate = coinRateFor(entry.type);
@@ -730,7 +1047,11 @@ export const useGameStore = defineStore("game", () => {
         const streakBonus = 1 + careStreak * 0.12;
         const boredMult = nextBoredom > BOREDOM_HIGH_THRESHOLD ? 0.7 : nextBoredom > 50 ? 0.85 : 1.0;
         const healthMult = nextHealth < HEALTH_LOW_THRESHOLD ? Math.max(0, nextHealth / HEALTH_LOW_THRESHOLD) : 1.0;
-        progress += baseRate * hungerMultiplier * streakBonus * boredMult * healthMult;
+        const bgFx = backgroundEffect.value;
+        const bgMult = bgFx?.coinMult
+          ? (!bgFx.fishType || bgFx.fishType === entry.type ? bgFx.coinMult : 1.0)
+          : 1.0;
+        progress += baseRate * hungerMultiplier * streakBonus * boredMult * healthMult * bgMult;
       }
 
       const payout = Math.floor(progress);
@@ -792,6 +1113,30 @@ export const useGameStore = defineStore("game", () => {
       lastMaintenanceTick.value = now;
     }
 
+    // ── Visitor logic ───────────────────────────────────────────────────────
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (visitor.value) {
+      if (now >= visitor.value.expiresAt) visitor.value = null;
+    } else if (
+      lastVisitorDate.value !== todayStr &&
+      visitorSpawnAfterMs.value > 0 &&
+      now - visitorSessionStartMs.value >= visitorSpawnAfterMs.value
+    ) {
+      const type = VISITOR_SPECIES[Math.floor(Math.random() * VISITOR_SPECIES.length)];
+      const name = VISITOR_NAMES[Math.floor(Math.random() * VISITOR_NAMES.length)];
+      visitor.value = {
+        type,
+        name,
+        spawnedAt: now,
+        expiresAt: now + VISITOR_DURATION_MS,
+        fed: false,
+        reward: VISITOR_REWARD_BASE + Math.floor(Math.random() * VISITOR_REWARD_BASE),
+        y: 20 + Math.random() * 45,
+      };
+      lastVisitorDate.value = todayStr;
+      pendingVisitorArrival.value = true;
+    }
+
     maybeAutoCollect(now);
     save();
   }
@@ -822,6 +1167,7 @@ export const useGameStore = defineStore("game", () => {
     pendingDeaths,
     pendingOfflineReward,
     pendingStorageWarning,
+    pendingStreakPop,
     background,
     coinDrops,
     coinCollector,
@@ -833,11 +1179,13 @@ export const useGameStore = defineStore("game", () => {
     collectorCapacity,
     averageHunger,
     showHowTo,
+    livePositions,
     load,
     save,
     resetGame,
     chargeFlake,
     feedFish,
+    playWithFish,
     removeFish,
     buyFish,
     buySpoon,
@@ -855,6 +1203,27 @@ export const useGameStore = defineStore("game", () => {
     clearPendingDeaths,
     clearOfflineReward,
     clearStorageWarning,
+    clearStreakPop,
+    collectAll,
     tick,
+    unlockedAchievements,
+    totalCoinsCollected,
+    totalFeedCount,
+    maxCareStreakEver,
+    dailyState,
+    pendingAchievementUnlocks,
+    pendingDailyBonus,
+    shiftAchievementUnlock,
+    clearDailyBonus,
+    claimMission,
+    visitor,
+    pendingVisitorArrival,
+    prestigeLevel,
+    canPrestige,
+    backgroundEffect,
+    feedVisitor,
+    buyMedicine,
+    doPrestige,
+    clearVisitorArrival,
   };
 });

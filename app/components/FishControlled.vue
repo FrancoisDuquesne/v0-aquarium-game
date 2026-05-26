@@ -10,6 +10,8 @@ const props = defineProps<{
   isBeingFed?: boolean;
 }>();
 
+const emit = defineEmits<{ (e: "play", fishId: number): void }>();
+
 const size =
   FISH_CONFIG.FISH_SIZES[props.type as keyof typeof FISH_CONFIG.FISH_SIZES] ||
   FISH_CONFIG.FISH_SIZES.goldfish;
@@ -39,7 +41,8 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
     style="left:0;top:0;z-index:10;will-change:transform;transform-origin:center">
     <div
       class="fish-inner relative float-animation transition-transform duration-200 hover:scale-110"
-      :style="{ animationDelay: floatDelay, animationDuration: floatDuration }">
+      :style="{ animationDelay: floatDelay, animationDuration: floatDuration }"
+      @click.stop="emit('play', props.fishId)">
       <div
         v-if="isBeingFed"
         class="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping scale-150" />
@@ -69,7 +72,7 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         v-if="name"
         class="absolute bottom-full left-1/2 -translate-x-1/2 pb-0.5 text-[9px] text-white/85 font-semibold pointer-events-none whitespace-nowrap leading-none select-none flex items-center gap-0.5"
         style="text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.8)">
-        {{ name }}<span v-if="careStreak && careStreak >= 3" class="text-[8px]">🔥</span>
+        {{ name }}<span v-if="careStreak && careStreak > 0" class="text-[8px] text-orange-400">🔥{{ careStreak }}</span>
       </div>
 
       <!-- Fed / very happy bubble -->
@@ -77,6 +80,13 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         v-if="isBeingFed || hunger > 95"
         class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs animate-bounce select-none pointer-events-none">
         {{ isBeingFed ? "🍽️" : "❤️" }}
+      </div>
+
+      <!-- Boredom indicator — tap fish to cheer them up -->
+      <div
+        v-if="boredom > BOREDOM_HIGH_THRESHOLD && !isBeingFed"
+        class="absolute -top-5 -right-1 text-xs select-none pointer-events-none opacity-80">
+        😟
       </div>
     </div>
   </div>

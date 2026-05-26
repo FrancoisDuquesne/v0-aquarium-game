@@ -29,3 +29,15 @@
 }
 .coin-popup { animation: coin-popup-float 900ms ease-out forwards; }
 
+@media (prefers-reduced-motion: reduce) {
+  .float-animation,
+  .bubble-animation,
+  .coin-popup,
+  .animate-bounce,
+  .animate-ping,
+  .animate-spin,
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+

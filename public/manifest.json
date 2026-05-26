@@ -1,0 +1,17 @@
+{
+  "name": "Aquarium Game",
+  "short_name": "Aquarium",
+  "description": "Idle clicker aquarium — buy fish, feed them, collect coin drops.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a5f",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

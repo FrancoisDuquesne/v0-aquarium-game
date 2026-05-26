@@ -3,8 +3,7 @@ const game = useGameStore();
 const now = useNow({ interval: 1000 });
 
 function toLabel(path: string) {
-  const base = (path.split("/").pop() ?? "").replace(/\.[^.]+$/, "");
-  return base.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return BACKGROUND_LABELS[path] ?? (path.split("/").pop() ?? "").replace(/\.[^.]+$/, "");
 }
 
 const backgrounds = computed(() =>
@@ -83,7 +82,20 @@ const categories = [
             class="absolute top-1 right-1 w-4 h-4 rounded-full bg-cyan-500 flex items-center justify-center">
             <span class="text-[8px] text-slate-950 font-bold">✓</span>
           </div>
+          <!-- Effect badge on each thumbnail -->
+          <div v-if="BACKGROUND_EFFECTS[bg.src]"
+            class="absolute top-1 left-1 px-1 py-0.5 rounded text-[8px] font-bold leading-none"
+            style="background: rgba(0,0,0,0.7);">
+            {{ BACKGROUND_EFFECTS[bg.src]!.icon }}
+          </div>
         </div>
+      </div>
+      <!-- Active background effect label -->
+      <div v-if="BACKGROUND_EFFECTS[game.background]"
+        class="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium w-fit"
+        style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2);">
+        <span>{{ BACKGROUND_EFFECTS[game.background]!.icon }}</span>
+        <span class="text-cyan-300/80">{{ BACKGROUND_EFFECTS[game.background]!.label }}</span>
       </div>
     </section>
 

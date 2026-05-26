@@ -26,7 +26,17 @@ function coinsPerMinute(type: string) {
   return Math.round(coinsPerMinuteFor(type) * 10) / 10;
 }
 
+function fishUptakeCost(type: string) {
+  const water = MAINTENANCE_WATER_COST[type] ?? 0.5;
+  return Math.round((water + FOOD_PER_FISH) * 10) / 10;
+}
+
 const tankFull = computed(() => game.fish.length >= game.tankCapacity);
+
+const collectorStats = computed(
+  () => COIN_COLLECTOR_LEVELS.find((e) => e.level === game.coinCollector.level) ?? COIN_COLLECTOR_LEVELS[0]
+);
+const nextCollector = computed(() => nextCollectorLevel(game.coinCollector.level));
 </script>
 
 <template>
@@ -72,9 +82,11 @@ const tankFull = computed(() => game.fish.length >= game.tankCapacity);
                 <p class="text-xs font-semibold text-white truncate">{{ item.name }}</p>
                 <p class="text-[10px] text-yellow-400/90 font-medium">{{ item.cost }} coins</p>
                 <p class="text-[10px] text-emerald-400/80">+{{ coinsPerMinute(item.type) }}/min</p>
+                <p class="text-[10px] text-red-400/60">-{{ fishUptakeCost(item.type) }}/min upkeep</p>
               </div>
             </div>
             <p class="text-[10px] text-white/35 leading-snug">{{ item.desc }}</p>
+            <p v-if="SPECIES_LORE[item.type]" class="text-[9px] text-white/20 leading-snug italic">{{ SPECIES_LORE[item.type] }}</p>
             <button
               class="w-full py-1.5 rounded-lg text-xs font-semibold transition-all focus:outline-none"
               :class="tankFull || game.coins < item.cost
@@ -90,6 +102,37 @@ const tankFull = computed(() => game.fish.length >= game.tankCapacity);
 
       <!-- Upgrades -->
       <div v-else-if="activeCategory === 'upgrades'">
+        <!-- Coin Collector — shown first since it's the most impactful early upgrade -->
+        <div class="rounded-xl p-3 flex flex-col gap-2 mb-3"
+          style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <div class="w-10 h-10 flex items-center justify-center rounded-lg text-xl shrink-0"
+                style="background: rgba(255,255,255,0.06);">🧺</div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-white truncate">Coin Collector</p>
+                <p class="text-[10px] text-white/40 mt-0.5">{{ collectorStats.label }}</p>
+                <p v-if="nextCollector" class="text-[10px] text-yellow-400/90 font-medium">{{ nextCollector.cost }} coins</p>
+              </div>
+            </div>
+            <button
+              v-if="nextCollector"
+              class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all focus:outline-none"
+              :class="game.coins < nextCollector.cost
+                ? 'bg-white/5 text-white/25 cursor-not-allowed'
+                : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25'"
+              :disabled="game.coins < nextCollector.cost"
+              @click="game.buyCoinCollectorUpgrade()">
+              Upgrade
+            </button>
+            <span v-else class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/25">
+              ✓ Maxed
+            </span>
+          </div>
+          <p class="text-[10px] text-white/35 leading-snug">{{ collectorStats.description }}</p>
+          <p v-if="nextCollector" class="text-[10px] text-emerald-400/70">Next: {{ nextCollector.description }}</p>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             v-for="item in TANK_UPGRADES"
@@ -213,6 +256,32 @@ const tankFull = computed(() => game.fish.length >= game.tankCapacity);
 
       <!-- Power-ups -->
       <div v-else-if="activeCategory === 'powerups'">
+        <!-- Medicine — one-shot heal for all fish -->
+        <div class="rounded-xl p-3 flex flex-col gap-2 mb-3"
+          style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <div class="w-10 h-10 flex items-center justify-center rounded-lg text-xl shrink-0"
+                style="background: rgba(255,255,255,0.06);">💊</div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-white truncate">Medicine</p>
+                <p class="text-[10px] text-yellow-400/90 font-medium">{{ MEDICINE_COST }} coins</p>
+                <p class="text-[10px] text-white/35">Instant effect</p>
+              </div>
+            </div>
+            <button
+              class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all focus:outline-none"
+              :class="game.coins < MEDICINE_COST || !game.fish.length
+                ? 'bg-white/5 text-white/25 cursor-not-allowed'
+                : 'bg-rose-500/15 text-rose-400 border border-rose-500/25 hover:bg-rose-500/25'"
+              :disabled="game.coins < MEDICINE_COST || !game.fish.length"
+              @click="game.buyMedicine()">
+              Heal All
+            </button>
+          </div>
+          <p class="text-[10px] text-white/35 leading-snug">Restores +{{ MEDICINE_HEAL_AMOUNT }} health to all fish in your tank.</p>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             v-for="item in POWER_UP_ITEMS"
