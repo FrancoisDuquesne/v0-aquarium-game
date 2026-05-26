@@ -17,7 +17,7 @@ const size =
 const barWidth = Math.max(24, Math.min(size.width, 52));
 
 const healthBarClass = computed(() =>
-  props.health >= 70 ? "bg-emerald-400" : props.health >= 40 ? "bg-orange-400" : "bg-red-500"
+  props.health >= HEALTH_HIGH_THRESHOLD ? "bg-emerald-400" : props.health >= HEALTH_LOW_THRESHOLD ? "bg-orange-400" : "bg-red-500"
 );
 const hungerBarClass = computed(() =>
   props.hunger >= HAPPY_THRESHOLD ? "bg-green-400" : props.hunger >= CARE_THRESHOLD ? "bg-yellow-400" : "bg-red-400"
@@ -27,7 +27,9 @@ const moodBarClass = computed(() => {
   return mood >= 60 ? "bg-sky-400" : mood >= 30 ? "bg-yellow-400" : "bg-red-400";
 });
 
-const floatDelay = `${(props.fishId % 10) * 0.31}s`;
+// Negative delay = immediate phase offset; varying duration prevents re-syncing
+const floatDelay = `-${(props.fishId % 10) * 0.3}s`;
+const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
 </script>
 
 <template>
@@ -37,7 +39,7 @@ const floatDelay = `${(props.fishId % 10) * 0.31}s`;
     style="left:0;top:0;z-index:10;will-change:transform;transform-origin:center">
     <div
       class="fish-inner relative float-animation transition-transform duration-200 hover:scale-110"
-      :style="{ animationDelay: floatDelay }">
+      :style="{ animationDelay: floatDelay, animationDuration: floatDuration }">
       <div
         v-if="isBeingFed"
         class="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping scale-150" />

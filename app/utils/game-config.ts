@@ -214,6 +214,7 @@ export const OFFLINE_MAX_MS = 24 * 60 * 60 * 1000;
 export const HEALTH_DECAY_RATE = 1.5;
 export const HEALTH_REGEN_RATE = 0.3;
 export const HEALTH_LOW_THRESHOLD = 40;
+export const HEALTH_HIGH_THRESHOLD = 70;
 export const BOREDOM_BASE_RATE = 1.5;
 export const BOREDOM_DECOR_REDUCTION = 1.5;
 export const BOREDOM_FRIEND_REDUCTION = 1.0;
