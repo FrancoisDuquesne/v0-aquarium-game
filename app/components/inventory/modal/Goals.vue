@@ -73,7 +73,7 @@ function confirmPrestige() {
             :key="'e' + i"
             class="w-2.5 h-2.5 rounded-sm bg-white/10" />
         </div>
-        <p class="text-[10px] text-white/30 mt-1">7-day preview</p>
+        <p class="text-xs text-white/30 mt-1">7-day preview</p>
       </div>
     </div>
 
@@ -93,22 +93,25 @@ function confirmPrestige() {
               <span class="text-base leading-none shrink-0">{{ m.icon }}</span>
               <div class="min-w-0">
                 <p class="text-xs font-semibold text-white truncate">{{ m.title }}</p>
-                <p class="text-[10px] text-white/40 truncate">{{ m.desc }}</p>
+                <p class="text-xs text-white/40 truncate">{{ m.desc }}</p>
               </div>
             </div>
             <!-- Claim / claimed state -->
-            <span
+            <UBadge
               v-if="m.claimed"
-              class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-              ✓ +{{ m.reward }}
-            </span>
-            <button
+              color="success"
+              variant="soft"
+              :label="`✓ +${m.reward}`"
+              class="shrink-0" />
+            <UButton
               v-else-if="m.progress >= m.goal"
-              class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30 transition-all focus:outline-none"
-              @click="claimMission(m.id)">
-              Claim +{{ m.reward }}
-            </button>
-            <span v-else class="shrink-0 text-[10px] text-white/30 tabular-nums">
+              color="warning"
+              variant="soft"
+              size="sm"
+              :label="`Claim +${m.reward}`"
+              class="shrink-0"
+              @click="claimMission(m.id)" />
+            <span v-else class="shrink-0 text-xs text-white/30 tabular-nums">
               {{ m.progress }}/{{ m.goal }}
             </span>
           </div>
@@ -132,7 +135,7 @@ function confirmPrestige() {
         <h3 class="text-xs font-semibold uppercase tracking-widest text-white/40">
           Achievements
         </h3>
-        <span class="text-[10px] text-white/30">{{ achievementCount }} / {{ totalAchievements }}</span>
+        <span class="text-xs text-white/30">{{ achievementCount }} / {{ totalAchievements }}</span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div
@@ -148,7 +151,7 @@ function confirmPrestige() {
           <span class="text-2xl leading-none shrink-0">{{ ach.icon }}</span>
           <div class="min-w-0">
             <p class="text-xs font-semibold text-white truncate">{{ ach.name }}</p>
-            <p class="text-[10px] text-white/40 leading-snug">{{ ach.desc }}</p>
+            <p class="text-xs text-white/40 leading-snug">{{ ach.desc }}</p>
           </div>
           <span
             v-if="game.unlockedAchievements.includes(ach.id)"
@@ -178,42 +181,45 @@ function confirmPrestige() {
           </div>
         </div>
         <div v-if="!game.canPrestige" class="space-y-1.5">
-          <p class="text-[11px] text-white/40">Requirements:</p>
-          <div class="flex items-center gap-2 text-[11px]"
+          <p class="text-xs text-white/40">Requirements:</p>
+          <div class="flex items-center gap-2 text-xs"
             :class="game.fish.length >= PRESTIGE_MIN_FISH ? 'text-emerald-400' : 'text-white/30'">
             <span>{{ game.fish.length >= PRESTIGE_MIN_FISH ? '✓' : '○' }}</span>
             <span>{{ game.fish.length }}/{{ PRESTIGE_MIN_FISH }} fish in tank</span>
           </div>
-          <div class="flex items-center gap-2 text-[11px]"
+          <div class="flex items-center gap-2 text-xs"
             :class="game.coins >= PRESTIGE_MIN_COINS ? 'text-emerald-400' : 'text-white/30'">
             <span>{{ game.coins >= PRESTIGE_MIN_COINS ? '✓' : '○' }}</span>
             <span>{{ abbreviateCoins(game.coins) }}/{{ PRESTIGE_MIN_COINS }} coins</span>
           </div>
         </div>
         <div v-else class="space-y-2">
-          <p class="text-[11px] text-yellow-300/80 leading-snug">
+          <p class="text-xs text-yellow-300/80 leading-snug">
             Release all fish back to the ocean and restart with {{ PRESTIGE_START_COINS + PRESTIGE_START_BONUS }} coins.
             <span class="font-semibold text-yellow-300">Gain +10% permanent coin multiplier.</span>
           </p>
-          <button
+          <UButton
             v-if="!showPrestigeConfirm"
-            class="w-full py-2 rounded-lg text-xs font-semibold transition-all focus:outline-none bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30"
-            @click="showPrestigeConfirm = true">
-            ✨ Prestige (Level {{ game.prestigeLevel + 1 }})
-          </button>
+            color="primary"
+            variant="soft"
+            :label="`✨ Prestige (Level ${game.prestigeLevel + 1})`"
+            block
+            @click="showPrestigeConfirm = true" />
           <div v-else class="flex flex-col gap-2">
-            <p class="text-[11px] text-red-300/80 font-semibold">⚠️ This will release all your fish. Are you sure?</p>
+            <p class="text-xs text-red-300/80 font-semibold">⚠️ This will release all your fish. Are you sure?</p>
             <div class="flex gap-2">
-              <button
-                class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all focus:outline-none bg-white/6 text-white/40 hover:bg-white/10"
-                @click="showPrestigeConfirm = false">
-                Cancel
-              </button>
-              <button
-                class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all focus:outline-none bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/35"
-                @click="confirmPrestige">
-                Confirm ✨
-              </button>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                label="Cancel"
+                class="flex-1"
+                @click="showPrestigeConfirm = false" />
+              <UButton
+                color="error"
+                variant="soft"
+                label="Confirm ✨"
+                class="flex-1"
+                @click="confirmPrestige" />
             </div>
           </div>
         </div>

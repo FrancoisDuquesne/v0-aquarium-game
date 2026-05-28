@@ -79,7 +79,7 @@ const goToShop = () => { activeSection.value = "shop"; };
                   v-if="activeSection === sec.id"
                   class="absolute inset-0 rounded-xl bg-cyan-500/10" />
                 <span class="relative text-lg leading-none">{{ sec.icon }}</span>
-                <span class="relative text-[9px] font-semibold uppercase tracking-wide leading-none">{{ sec.label }}</span>
+                <span class="relative text-xs font-semibold uppercase tracking-wide leading-none">{{ sec.label }}</span>
                 <!-- Hungry fish badge on Fish icon -->
                 <span
                   v-if="sec.id === 'fish' && hungryFishCount > 0"

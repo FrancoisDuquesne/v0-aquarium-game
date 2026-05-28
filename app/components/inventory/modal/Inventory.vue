@@ -79,54 +79,54 @@ const sortOptions = [
       <!-- Status + sort row -->
       <div class="flex items-center gap-2 flex-wrap">
         <div class="flex gap-1.5 flex-wrap">
-          <button
+          <UButton
             v-for="f in statusFilters"
             :key="f.id"
-            class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all focus:outline-none"
-            :class="statusFilter === f.id
-              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-              : 'bg-white/6 text-white/40 hover:text-white/60 border border-transparent'"
+            size="sm"
+            :color="statusFilter === f.id ? 'primary' : 'neutral'"
+            :variant="statusFilter === f.id ? 'soft' : 'ghost'"
+            class="rounded-full"
             @click="statusFilter = (f.id as typeof statusFilter.value)">
             {{ f.label }}
-          </button>
+          </UButton>
         </div>
         <div class="ml-auto flex items-center gap-1.5 shrink-0">
-          <select
+          <USelect
             v-model="sortKey"
-            class="bg-white/6 border border-white/10 text-white/60 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-500/40">
-            <option v-for="o in sortOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
-          </select>
-          <button
-            class="w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all bg-white/6 border border-white/10 text-white/50 hover:text-white/80 focus:outline-none"
+            :items="sortOptions.map(o => ({ label: o.label, value: o.id }))"
+            size="sm" />
+          <UButton
+            :icon="sortDir === 'desc' ? 'i-mdi-arrow-down' : 'i-mdi-arrow-up'"
+            variant="ghost"
+            color="neutral"
+            size="sm"
             :title="sortDir === 'desc' ? 'Descending' : 'Ascending'"
-            @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'">
-            {{ sortDir === 'desc' ? '↓' : '↑' }}
-          </button>
+            @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'" />
         </div>
       </div>
 
       <!-- Species row (only when 2+ species owned) -->
       <div v-if="showSpeciesRow" class="flex gap-1.5 overflow-x-auto pb-0.5">
-        <button
-          class="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all focus:outline-none"
-          :class="selectedSpecies === 'all'
-            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-            : 'bg-white/6 text-white/40 hover:text-white/60 border border-transparent'"
+        <UButton
+          size="sm"
+          :color="selectedSpecies === 'all' ? 'primary' : 'neutral'"
+          :variant="selectedSpecies === 'all' ? 'soft' : 'ghost'"
+          class="shrink-0 rounded-full"
           @click="selectedSpecies = 'all'">
           All
-        </button>
-        <button
+        </UButton>
+        <UButton
           v-for="(count, type) in fishCounts"
           :key="type"
-          class="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all focus:outline-none"
-          :class="selectedSpecies === type
-            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-            : 'bg-white/6 text-white/40 hover:text-white/60 border border-transparent'"
+          size="sm"
+          :color="selectedSpecies === type ? 'primary' : 'neutral'"
+          :variant="selectedSpecies === type ? 'soft' : 'ghost'"
+          class="shrink-0 rounded-full"
           @click="selectedSpecies = selectedSpecies === type ? 'all' : (type as string)">
           <FishSvg :type="type as string" :width="18" :height="12" />
           <span>{{ fishName(type as string) }}</span>
           <span class="opacity-60">{{ count }}</span>
-        </button>
+        </UButton>
       </div>
     </div>
 
@@ -143,14 +143,14 @@ const sortOptions = [
           style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
 
           <!-- Delete button (top-right) -->
-          <button
-            class="absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none"
+          <UButton
+            icon="i-mdi-delete"
+            variant="ghost"
+            color="error"
+            size="xs"
+            class="absolute top-2 right-2"
             aria-label="Remove fish"
-            @click="game.removeFish(f.id)">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
+            @click="game.removeFish(f.id)" />
 
           <!-- Fish identity -->
           <div class="flex items-center gap-2 pr-5">
@@ -161,9 +161,9 @@ const sortOptions = [
             <div class="min-w-0">
               <p class="text-xs font-semibold text-white truncate leading-tight">
                 {{ f.name || fishName(f.type) }}
-                <span v-if="f.careStreak > 0" class="text-orange-400 text-[10px]"> 🔥{{ f.careStreak }}</span>
+                <span v-if="f.careStreak > 0" class="text-orange-400 text-xs"> 🔥{{ f.careStreak }}</span>
               </p>
-              <p class="text-[10px] text-white/35 truncate">
+              <p class="text-xs text-white/35 truncate">
                 {{ fishName(f.type) }}
                 <span v-if="f.personality" :title="PERSONALITY_PROFILES[f.personality as PersonalityType]?.label">
                   · {{ PERSONALITY_PROFILES[f.personality as PersonalityType]?.icon }}
@@ -175,40 +175,42 @@ const sortOptions = [
           <!-- Stat bars -->
           <div class="space-y-1.5">
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] w-3 text-center leading-none">❤️</span>
+              <span class="text-xs w-3 text-center leading-none">❤️</span>
               <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
                 <div class="h-full rounded-full transition-all duration-500"
                   :class="f.health >= 70 ? 'bg-emerald-400' : f.health >= 40 ? 'bg-orange-400' : 'bg-red-500'"
                   :style="{ width: f.health + '%' }" />
               </div>
-              <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.health) }}</span>
+              <span class="text-xs text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.health) }}</span>
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] w-3 text-center leading-none">🍽️</span>
+              <span class="text-xs w-3 text-center leading-none">🍽️</span>
               <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
                 <div class="h-full rounded-full transition-all duration-500"
                   :class="f.hunger >= HAPPY_THRESHOLD ? 'bg-green-400' : f.hunger >= CARE_THRESHOLD ? 'bg-yellow-400' : 'bg-red-400'"
                   :style="{ width: f.hunger + '%' }" />
               </div>
-              <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.hunger) }}</span>
+              <span class="text-xs text-white/30 tabular-nums w-5 text-right">{{ Math.round(f.hunger) }}</span>
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] w-3 text-center leading-none">😊</span>
+              <span class="text-xs w-3 text-center leading-none">😊</span>
               <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
                 <div class="h-full rounded-full transition-all duration-500"
                   :class="f.boredom < 30 ? 'bg-green-400' : f.boredom < BOREDOM_HIGH_THRESHOLD ? 'bg-yellow-400' : 'bg-red-400'"
                   :style="{ width: (100 - f.boredom) + '%' }" />
               </div>
-              <span class="text-[10px] text-white/30 tabular-nums w-5 text-right">{{ Math.round(100 - f.boredom) }}</span>
+              <span class="text-xs text-white/30 tabular-nums w-5 text-right">{{ Math.round(100 - f.boredom) }}</span>
             </div>
           </div>
 
           <!-- Feed button -->
-          <button
-            class="w-full py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/25 transition-all focus:outline-none"
-            @click="game.feedFish(f.id, FEED_AMOUNT)">
-            Feed
-          </button>
+          <UButton
+            color="success"
+            variant="soft"
+            size="sm"
+            label="Feed"
+            block
+            @click="game.feedFish(f.id, FEED_AMOUNT)" />
         </div>
 
         <!-- Buy more fish card -->
@@ -217,7 +219,7 @@ const sortOptions = [
           style="border: 2px dashed rgba(255,255,255,0.1); min-height: 120px;"
           @click="emit('go-to-shop')">
           <span class="text-2xl group-hover:scale-110 transition-transform">+</span>
-          <span class="text-[11px] font-medium">Buy fish</span>
+          <span class="text-xs font-medium">Buy fish</span>
         </button>
       </div>
 
