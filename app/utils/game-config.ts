@@ -566,3 +566,116 @@ export const SPECIES_LORE: Record<string, string> = {
   "tiger-barb":      "Bold, fast, and often mischievous. Tiger barbs love to chase; keep six or more to dilute their nippy tendencies.",
   "jewel-cichlid":   "One of Africa's most vividly colored fish. Fiercely territorial during breeding — the 'jewel' name comes from rival keepers who envy its coloration.",
 };
+
+// ── Breeding / Genetics System ─────────────────────────────────────────────────
+export const INCUBATOR_COST = 800;
+export const INCUBATION_DURATION_MS = 180_000;   // 3 minutes
+export const BREEDING_COOLDOWN_MS = 300_000;     // 5 min cooldown between breeds
+export const MIN_PARENT_HEALTH = 50;
+export const MIN_PARENT_HUNGER = 40;
+export const BASE_MORTALITY_CHANCE = 0.05;       // 5% base chance baby doesn't survive
+export const INBREEDING_MORTALITY_BONUS = 0.10;  // +10% if parents share grandparent
+export const SICKLY_EARLY_DEATH_CHANCE = 0.30;   // 30% sickly fish die in first 5 min
+export const SICKLY_WATCH_DURATION_MS = 300_000; // 5 minutes watch period for sickly
+
+export type MutationType = "golden" | "hardy" | "swift" | "sickly" | "lethargic" | "voracious";
+
+export interface MutationDef {
+  label: string;
+  icon: string;
+  description: string;
+  isNegative: boolean;
+  effects: {
+    speedMod?: number;
+    coinMod?: number;
+    hungerMod?: number;
+    healthMod?: number;
+  };
+}
+
+export const MUTATION_DEFINITIONS: Record<MutationType, MutationDef> = {
+  golden: {
+    label: "Golden",
+    icon: "✨",
+    description: "A rare golden variant that produces 50% more coins!",
+    isNegative: false,
+    effects: { coinMod: 1.5 },
+  },
+  hardy: {
+    label: "Hardy",
+    icon: "💪",
+    description: "Exceptionally resilient with 30% more health and slower hunger decay.",
+    isNegative: false,
+    effects: { healthMod: 1.3, hungerMod: 0.8 },
+  },
+  swift: {
+    label: "Swift",
+    icon: "💨",
+    description: "Blazingly fast swimmer with 40% increased speed.",
+    isNegative: false,
+    effects: { speedMod: 1.4 },
+  },
+  sickly: {
+    label: "Sickly",
+    icon: "🤒",
+    description: "A frail fish with reduced health and faster hunger. May not survive long...",
+    isNegative: true,
+    effects: { healthMod: 0.7, hungerMod: 1.2 },
+  },
+  lethargic: {
+    label: "Lethargic",
+    icon: "🐌",
+    description: "Moves slowly and produces fewer coins. Prefers napping.",
+    isNegative: true,
+    effects: { speedMod: 0.6, coinMod: 0.8 },
+  },
+  voracious: {
+    label: "Voracious",
+    icon: "🍽️",
+    description: "Always hungry! Needs constant feeding to stay healthy.",
+    isNegative: true,
+    effects: { hungerMod: 1.5 },
+  },
+};
+
+export interface GeneticsData {
+  speedMod: number;      // 0.7 - 1.3 multiplier on base speed
+  coinMod: number;       // 0.7 - 1.5 multiplier on coin rate
+  hungerMod: number;     // 0.8 - 1.4 (lower = slower hunger decay = better)
+  healthMod: number;     // 0.7 - 1.3 multiplier on max health
+  mutation?: MutationType;
+}
+
+export const DEFAULT_GENETICS: GeneticsData = {
+  speedMod: 1.0,
+  coinMod: 1.0,
+  hungerMod: 1.0,
+  healthMod: 1.0,
+};
+
+export interface BreedingState {
+  parent1Id: number;
+  parent2Id: number;
+  startedAt: number;
+  babyType: string;
+  babyGenetics: GeneticsData;
+  babyName: string;
+}
+
+export interface IncubatorState {
+  owned: boolean;
+  breeding: BreedingState | null;
+  lastBreedTime: number;
+  queuedBaby: { type: string; genetics: GeneticsData; name: string; generation: number; parentIds: [number, number] } | null;
+}
+
+export const DEFAULT_INCUBATOR: IncubatorState = {
+  owned: false,
+  breeding: null,
+  lastBreedTime: 0,
+  queuedBaby: null,
+};
+
+// Baby name generation syllables
+export const BABY_NAME_PREFIXES = ["Bub", "Fin", "Rip", "Gill", "Mar", "Aqu", "Cor", "Nep", "Wav", "Dew", "Mist", "Glo", "Shim"];
+export const BABY_NAME_SUFFIXES = ["ble", "ny", "ette", "ito", "let", "ling", "ie", "sy", "kins", "os", "ix", "ara", "umi"];
