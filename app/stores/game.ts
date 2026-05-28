@@ -1,4 +1,18 @@
 import { defineStore } from "pinia";
+import {
+  DEFAULT_BACKGROUND,
+  DEFAULT_AUTO_FEEDER,
+  DEFAULT_TOOLS,
+  DEFAULT_COIN_COLLECTOR,
+  DEFAULT_UPGRADES,
+  DEFAULT_BOOSTS,
+  COIN_COLLECTOR_LEVELS,
+  BOOST_DEFINITIONS,
+  FISH_NAMES,
+  PERSONALITY_POOL,
+  MISSION_POOL,
+  DAILY_MISSION_COUNT,
+} from "~/utils/game-config";
 
 type ToolType = "flake" | "spoon";
 
@@ -240,7 +254,7 @@ function collectorStats(level: number) {
 }
 
 export const useGameStore = defineStore("game", () => {
-  const coins = ref(150);
+  const coins = ref(5000);
   const fish = ref<FishData[]>([
     normalizeFish({ id: 1, type: "goldfish", name: "Goldie", x: 20, y: 50, hunger: 80, speed: 2, coinProgress: 0, careStreak: 0 }),
     normalizeFish({ id: 2, type: "angelfish", name: "Marina", x: 60, y: 30, hunger: 60, speed: 1.5, coinProgress: 0, careStreak: 0 }),

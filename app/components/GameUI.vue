@@ -4,7 +4,6 @@ const now = useNow({ interval: 1000 });
 const showModal = ref(false);
 const showResetConfirm = ref(false);
 const showOfflineModal = ref(false);
-const showStats = ref(false);
 const offlineAmount = ref(0);
 const hasOpenedStore = ref(false);
 
@@ -25,9 +24,6 @@ const menuItems = [
 
 const initialSection = ref<Section>("fish");
 const avg = computed(() => game.averageHunger);
-
-const pendingDrops = computed(() => game.coinDrops.length);
-const collectorHasUpgrade = computed(() => game.coinCollector.level > 0);
 
 const boostBadges = computed(
   () =>
@@ -262,14 +258,6 @@ watch(
             class="shadow" />
         </div>
       </div>
-      <div v-if="pendingDrops > 5 && !collectorHasUpgrade" class="flex gap-2">
-        <UButton
-          class="w-fit shadow-xl"
-          size="xs"
-          color="warning"
-          :label="`💰 Collect All (${pendingDrops})`"
-          @click="game.collectAll()" />
-      </div>
     </div>
 
     <!-- Tutorial hint -->
@@ -290,12 +278,10 @@ watch(
         style="background: rgba(2,6,23,0.88); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px);">
         <!-- Fish -->
         <div class="relative">
-          <button
-            class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
-            @click="openSection('fish')">
+          <UButton variant="ghost" color="neutral" @click="openSection('fish')" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2">
             <span class="text-base leading-none">🐟</span>
-            <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Fish</span>
-          </button>
+            <span class="text-xs font-semibold uppercase tracking-wide leading-none">Fish</span>
+          </UButton>
           <span
             v-if="hungryFishCount > 0"
             class="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
@@ -303,36 +289,26 @@ watch(
           </span>
         </div>
         <!-- Shop -->
-        <button
-          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
+        <UButton
+          variant="ghost"
+          color="neutral"
           :class="tutorialStep === 2 ? 'ring-2 ring-yellow-400/60 animate-pulse text-yellow-300/80' : ''"
+          class="flex flex-col items-center h-auto gap-0.5 px-4 py-2"
           @click="openSection('shop')">
           <span class="text-base leading-none">🛒</span>
-          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Shop</span>
-        </button>
-        <!-- Stats -->
-        <button
-          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all focus:outline-none"
-          :class="showStats ? 'text-cyan-300' : 'text-white/50 hover:text-white/80'"
-          @click="showStats = !showStats">
-          <span class="text-base leading-none">📊</span>
-          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Stats</span>
-        </button>
+          <span class="text-xs font-semibold uppercase tracking-wide leading-none">Shop</span>
+        </UButton>
         <!-- Tank -->
-        <button
-          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
-          @click="openSection('tank')">
+        <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2" @click="openSection('tank')">
           <span class="text-base leading-none">🌊</span>
-          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Tank</span>
-        </button>
+          <span class="text-xs font-semibold uppercase tracking-wide leading-none">Tank</span>
+        </UButton>
         <!-- Goals -->
         <div class="relative">
-          <button
-            class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
-            @click="openSection('goals')">
+          <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2" @click="openSection('goals')">
             <span class="text-base leading-none">🏆</span>
-            <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Goals</span>
-          </button>
+            <span class="text-xs font-semibold uppercase tracking-wide leading-none">Goals</span>
+          </UButton>
           <span
             v-if="pendingMissionCount > 0"
             class="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 bg-yellow-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center pointer-events-none leading-none">
@@ -342,8 +318,9 @@ watch(
       </div>
     </div>
 
-    <ToolsPanel />
-    <TankStatsPanel v-if="showStats" @close="showStats = false" />
+    <FeedPanel />
+    <TankStatsPanel />
+    <ClaimableMissions />
 
     <InventoryModal
       v-model="showModal"

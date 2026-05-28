@@ -29,7 +29,6 @@ const moodBarClass = computed(() => {
   return mood >= 60 ? "bg-sky-400" : mood >= 30 ? "bg-yellow-400" : "bg-red-400";
 });
 
-// Negative delay = immediate phase offset; varying duration prevents re-syncing
 const floatDelay = `-${(props.fishId % 10) * 0.3}s`;
 const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
 </script>
@@ -37,7 +36,7 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
 <template>
   <div
     :data-fishid="props.fishId"
-    class="absolute cursor-pointer"
+    class="absolute cursor-pointer group"
     style="left:0;top:0;z-index:10;will-change:transform;transform-origin:center">
     <div
       class="fish-inner relative float-animation transition-transform duration-200 hover:scale-110"
@@ -52,11 +51,18 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         :height="size.height"
         class="drop-shadow-lg" />
 
-      <!-- Status bars below fish -->
+      <!-- Always-visible hunger strip (thin bar just below fish) -->
       <div
-        class="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-col gap-[3px] pointer-events-none px-1 py-0.5 rounded-md"
-        style="background: rgba(0,0,0,0.35);"
-        :style="{ width: (barWidth + 8) + 'px' }">
+        class="absolute top-full left-1/2 -translate-x-1/2 mt-0.5 pointer-events-none rounded-full overflow-hidden"
+        :style="{ width: Math.round(size.width * 0.65) + 'px', height: '2px', background: 'rgba(0,0,0,0.3)' }">
+        <div class="h-full rounded-full transition-[width] duration-700" :class="hungerBarClass" :style="{ width: hunger + '%' }" />
+      </div>
+
+      <!-- Hover-only full stat panel -->
+      <div
+        class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex flex-col gap-[3px] pointer-events-none px-1.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+        style="background: rgba(0,0,0,0.55);"
+        :style="{ width: (barWidth + 10) + 'px' }">
         <div class="flex items-center gap-1">
           <span class="text-[8px] leading-none w-3 text-center shrink-0">❤️</span>
           <div class="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">
@@ -95,7 +101,7 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         <span class="fish-label text-xs select-none">{{ isBeingFed ? "🍽️" : "❤️" }}</span>
       </div>
 
-      <!-- Boredom indicator — tap fish to cheer them up -->
+      <!-- Boredom indicator -->
       <div
         v-if="boredom > BOREDOM_HIGH_THRESHOLD && !isBeingFed"
         class="absolute -top-5 -right-1 select-none pointer-events-none opacity-80">
