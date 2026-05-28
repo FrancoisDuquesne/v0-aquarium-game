@@ -191,6 +191,34 @@ const nextCollector = computed(() => nextCollectorLevel(game.coinCollector.level
           <p v-if="nextCollector" class="text-xs text-emerald-400/70">Next: {{ nextCollector.description }}</p>
         </div>
 
+        <!-- Incubator -->
+        <div class="rounded-xl p-3 flex flex-col gap-2 mb-3"
+          style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <div class="w-10 h-10 flex items-center justify-center rounded-lg text-xl shrink-0"
+                style="background: rgba(255,255,255,0.06);">🥚</div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-white truncate">Incubator</p>
+                <p v-if="!game.incubator.owned" class="text-xs text-yellow-400/90 font-medium">{{ INCUBATOR_COST }} coins</p>
+                <p v-else class="text-xs text-white/40">Owned</p>
+              </div>
+            </div>
+            <UBadge v-if="game.incubator.owned" color="primary" variant="soft" label="✓ Owned" class="shrink-0" />
+            <UButton
+              v-else
+              color="primary"
+              variant="soft"
+              size="sm"
+              label="Buy"
+              :disabled="game.coins < INCUBATOR_COST"
+              class="shrink-0"
+              @click="game.buyIncubator()" />
+          </div>
+          <p class="text-xs text-white/50 leading-snug">Breed two fish of the same species to create unique offspring with inherited traits.</p>
+          <p class="text-xs text-emerald-400/70">Babies may have improved stats or rare mutations!</p>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             v-for="item in TANK_UPGRADES"

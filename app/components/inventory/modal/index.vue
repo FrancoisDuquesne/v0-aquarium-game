@@ -2,7 +2,7 @@
 const game = useGameStore();
 const open = defineModel<boolean>({ required: true });
 
-type Section = "fish" | "shop" | "tank" | "goals";
+type Section = "fish" | "shop" | "tank" | "goals" | "breed";
 
 const props = withDefaults(
   defineProps<{ initialSection?: Section }>(),
@@ -24,6 +24,7 @@ const hungryFishCount = computed(
 
 const sections: { id: Section; icon: string; label: string }[] = [
   { id: "fish",  icon: "🐟", label: "Fish"  },
+  { id: "breed", icon: "🥚", label: "Breed" },
   { id: "shop",  icon: "🛒", label: "Shop"  },
   { id: "tank",  icon: "🌊", label: "Tank"  },
   { id: "goals", icon: "🏆", label: "Goals" },
@@ -86,6 +87,10 @@ const goToShop = () => { activeSection.value = "shop"; };
                   class="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none pointer-events-none">
                   {{ hungryFishCount }}
                 </span>
+                <!-- Breeding active indicator -->
+                <span
+                  v-if="sec.id === 'breed' && game.incubator.breeding"
+                  class="absolute top-1 right-1 w-2.5 h-2.5 bg-pink-500 rounded-full animate-pulse pointer-events-none" />
               </button>
             </nav>
 
@@ -93,6 +98,9 @@ const goToShop = () => { activeSection.value = "shop"; };
             <div class="flex-1 min-w-0 overflow-y-auto">
               <InventoryModalInventory
                 v-if="activeSection === 'fish'"
+                @go-to-shop="goToShop" />
+              <InventoryModalBreeding
+                v-else-if="activeSection === 'breed'"
                 @go-to-shop="goToShop" />
               <InventoryModalStore
                 v-else-if="activeSection === 'shop'" />

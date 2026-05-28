@@ -6,12 +6,28 @@ import {
   DEFAULT_COIN_COLLECTOR,
   DEFAULT_UPGRADES,
   DEFAULT_BOOSTS,
+  DEFAULT_INCUBATOR,
   COIN_COLLECTOR_LEVELS,
   BOOST_DEFINITIONS,
   FISH_NAMES,
   PERSONALITY_POOL,
   MISSION_POOL,
   DAILY_MISSION_COUNT,
+  INCUBATOR_COST,
+  INCUBATION_DURATION_MS,
+  BREEDING_COOLDOWN_MS,
+  MIN_PARENT_HEALTH,
+  MIN_PARENT_HUNGER,
+  BASE_MORTALITY_CHANCE,
+  SICKLY_EARLY_DEATH_CHANCE,
+  SICKLY_WATCH_DURATION_MS,
+  DEFAULT_GENETICS,
+  MUTATION_DEFINITIONS,
+  BABY_NAME_PREFIXES,
+  BABY_NAME_SUFFIXES,
+  type GeneticsData,
+  type IncubatorState,
+  type MutationType,
 } from "~/utils/game-config";
 
 type ToolType = "flake" | "spoon";
@@ -29,6 +45,10 @@ interface FishData {
   coinProgress: number;
   careStreak: number;
   personality?: string;
+  genetics?: GeneticsData;
+  generation?: number;
+  parentIds?: [number, number];
+  sicklyWatchUntil?: number; // For sickly mutation mortality tracking
 }
 
 interface DailyMission {
@@ -132,6 +152,7 @@ interface GameState {
   dailyState: DailyState;
   lastVisitorDate: string;
   prestigeLevel: number;
+  incubator: IncubatorState;
 }
 
 const dropTimers = new Set<number>();
@@ -230,6 +251,10 @@ function normalizeFish(entry: Partial<FishData>): FishData {
       typeof entry.personality === "string" && entry.personality.length
         ? entry.personality
         : PERSONALITY_POOL[Math.floor(Math.random() * PERSONALITY_POOL.length)],
+    genetics: entry.genetics ?? undefined,
+    generation: typeof entry.generation === "number" ? entry.generation : undefined,
+    parentIds: Array.isArray(entry.parentIds) ? entry.parentIds as [number, number] : undefined,
+    sicklyWatchUntil: typeof entry.sicklyWatchUntil === "number" ? entry.sicklyWatchUntil : undefined,
   };
 }
 
@@ -315,6 +340,10 @@ export const useGameStore = defineStore("game", () => {
   const lastVisitorDate = ref("");
   const pendingVisitorArrival = ref(false);
   const prestigeLevel = ref(0);
+
+  // Breeding / Incubator state
+  const incubator = reactive<IncubatorState>({ ...DEFAULT_INCUBATOR });
+  const pendingBreedingResult = ref<{ success: boolean; baby?: FishData; deathReason?: string } | null>(null);
 
   const backgroundEffect = computed(() => BACKGROUND_EFFECTS[background.value] ?? null);
 
@@ -489,6 +518,15 @@ export const useGameStore = defineStore("game", () => {
         Math.random() * (VISITOR_SPAWN_DELAY_MAX_MS - VISITOR_SPAWN_DELAY_MIN_MS);
       visitor.value = null; // don't persist visitors across sessions
 
+      // ── Incubator / Breeding ─────────────────────────────────────────────────
+      const savedIncubator = (parsed as Record<string, unknown>).incubator as Partial<IncubatorState> | undefined;
+      if (savedIncubator) {
+        incubator.owned = Boolean(savedIncubator.owned);
+        incubator.lastBreedTime = typeof savedIncubator.lastBreedTime === "number" ? savedIncubator.lastBreedTime : 0;
+        incubator.breeding = savedIncubator.breeding ?? null;
+        incubator.queuedBaby = savedIncubator.queuedBaby ?? null;
+      }
+
       // Retroactively unlock state-based achievements on first load
       checkAchievements();
     } catch (error) {
@@ -532,6 +570,12 @@ export const useGameStore = defineStore("game", () => {
       lastVisitorDate: lastVisitorDate.value,
       prestigeLevel: prestigeLevel.value,
       netIncomeHistory: [...netIncomeHistory.value],
+      incubator: {
+        owned: incubator.owned,
+        breeding: incubator.breeding ? { ...incubator.breeding } : null,
+        lastBreedTime: incubator.lastBreedTime,
+        queuedBaby: incubator.queuedBaby ? { ...incubator.queuedBaby } : null,
+      },
     } as GameState & { netIncomeHistory: number[] };
     try {
       localStorage.setItem("aquarium-game", JSON.stringify(payload));
@@ -638,6 +682,279 @@ export const useGameStore = defineStore("game", () => {
 
   function clearVisitorArrival() {
     pendingVisitorArrival.value = false;
+  }
+
+  // ── Breeding / Genetics System ─────────────────────────────────────────────────
+
+  function generateBabyName(): string {
+    const prefix = BABY_NAME_PREFIXES[Math.floor(Math.random() * BABY_NAME_PREFIXES.length)];
+    const suffix = BABY_NAME_SUFFIXES[Math.floor(Math.random() * BABY_NAME_SUFFIXES.length)];
+    return prefix + suffix;
+  }
+
+  function inheritTrait(parent1Val: number, parent2Val: number, isHunger = false): number {
+    const roll = Math.random();
+    const avg = (parent1Val + parent2Val) / 2;
+    const better = isHunger ? Math.min(parent1Val, parent2Val) : Math.max(parent1Val, parent2Val);
+    const worse = isHunger ? Math.max(parent1Val, parent2Val) : Math.min(parent1Val, parent2Val);
+    
+    if (roll < 0.70) {
+      // Regression to mean
+      return avg + (Math.random() - 0.5) * 0.1;
+    } else if (roll < 0.90) {
+      // Slightly better than best parent
+      const bonus = isHunger ? -0.05 - Math.random() * 0.1 : 0.05 + Math.random() * 0.1;
+      return better + bonus;
+    } else if (roll < 0.98) {
+      // Slightly worse than worst parent
+      const penalty = isHunger ? 0.05 + Math.random() * 0.1 : -0.05 - Math.random() * 0.1;
+      return worse + penalty;
+    } else {
+      // Extreme mutation
+      const extreme = Math.random() < 0.5 
+        ? (isHunger ? 0.7 : 1.3 + Math.random() * 0.2)
+        : (isHunger ? 1.3 + Math.random() * 0.2 : 0.6 + Math.random() * 0.1);
+      return extreme;
+    }
+  }
+
+  function rollMutation(): MutationType | undefined {
+    const roll = Math.random();
+    // 2% chance for each mutation type (12% total)
+    const mutations: MutationType[] = ["golden", "hardy", "swift", "sickly", "lethargic", "voracious"];
+    for (let i = 0; i < mutations.length; i++) {
+      if (roll < (i + 1) * 0.02) {
+        return mutations[i];
+      }
+    }
+    return undefined;
+  }
+
+  function calculateBabyGenetics(parent1: FishData, parent2: FishData): GeneticsData {
+    const p1g = parent1.genetics ?? DEFAULT_GENETICS;
+    const p2g = parent2.genetics ?? DEFAULT_GENETICS;
+
+    let genetics: GeneticsData = {
+      speedMod: clamp(inheritTrait(p1g.speedMod, p2g.speedMod), 0.6, 1.5),
+      coinMod: clamp(inheritTrait(p1g.coinMod, p2g.coinMod), 0.6, 1.6),
+      hungerMod: clamp(inheritTrait(p1g.hungerMod, p2g.hungerMod, true), 0.7, 1.6),
+      healthMod: clamp(inheritTrait(p1g.healthMod, p2g.healthMod), 0.6, 1.4),
+    };
+
+    // Check for special mutation
+    const mutation = rollMutation();
+    if (mutation) {
+      genetics.mutation = mutation;
+      const effects = MUTATION_DEFINITIONS[mutation].effects;
+      if (effects.speedMod) genetics.speedMod *= effects.speedMod;
+      if (effects.coinMod) genetics.coinMod *= effects.coinMod;
+      if (effects.hungerMod) genetics.hungerMod *= effects.hungerMod;
+      if (effects.healthMod) genetics.healthMod *= effects.healthMod;
+    }
+
+    return genetics;
+  }
+
+  function checkInbreeding(parent1: FishData, parent2: FishData): boolean {
+    // Check if parents share a grandparent
+    if (!parent1.parentIds || !parent2.parentIds) return false;
+    const p1Parents = new Set(parent1.parentIds);
+    const p2Parents = new Set(parent2.parentIds);
+    for (const id of p1Parents) {
+      if (p2Parents.has(id)) return true;
+    }
+    return false;
+  }
+
+  function canBreed(fish1Id: number, fish2Id: number): { valid: boolean; reason?: string } {
+    if (!incubator.owned) return { valid: false, reason: "Incubator not owned" };
+    if (incubator.breeding) return { valid: false, reason: "Already breeding" };
+    
+    const now = Date.now();
+    if (now - incubator.lastBreedTime < BREEDING_COOLDOWN_MS) {
+      const remaining = Math.ceil((BREEDING_COOLDOWN_MS - (now - incubator.lastBreedTime)) / 1000);
+      return { valid: false, reason: `Cooldown: ${remaining}s remaining` };
+    }
+
+    const fish1 = fish.value.find(f => f.id === fish1Id);
+    const fish2 = fish.value.find(f => f.id === fish2Id);
+    
+    if (!fish1 || !fish2) return { valid: false, reason: "Fish not found" };
+    if (fish1.id === fish2.id) return { valid: false, reason: "Cannot breed fish with itself" };
+    if (fish1.type !== fish2.type) return { valid: false, reason: "Fish must be same species" };
+    if (fish1.health < MIN_PARENT_HEALTH || fish2.health < MIN_PARENT_HEALTH) {
+      return { valid: false, reason: `Both fish need ${MIN_PARENT_HEALTH}+ health` };
+    }
+    if (fish1.hunger < MIN_PARENT_HUNGER || fish2.hunger < MIN_PARENT_HUNGER) {
+      return { valid: false, reason: `Both fish need ${MIN_PARENT_HUNGER}+ hunger` };
+    }
+    if (fish.value.length >= tankCapacity.value && !incubator.queuedBaby) {
+      return { valid: false, reason: "Tank is full" };
+    }
+
+    return { valid: true };
+  }
+
+  function buyIncubator(): boolean {
+    if (coins.value < INCUBATOR_COST || incubator.owned) return false;
+    coins.value -= INCUBATOR_COST;
+    incubator.owned = true;
+    save();
+    return true;
+  }
+
+  function startBreeding(fish1Id: number, fish2Id: number): { success: boolean; reason?: string } {
+    const check = canBreed(fish1Id, fish2Id);
+    if (!check.valid) return { success: false, reason: check.reason };
+
+    const parent1 = fish.value.find(f => f.id === fish1Id)!;
+    const parent2 = fish.value.find(f => f.id === fish2Id)!;
+
+    const babyGenetics = calculateBabyGenetics(parent1, parent2);
+    const babyName = generateBabyName();
+
+    incubator.breeding = {
+      parent1Id: fish1Id,
+      parent2Id: fish2Id,
+      startedAt: Date.now(),
+      babyType: parent1.type,
+      babyGenetics,
+      babyName,
+    };
+
+    save();
+    return { success: true };
+  }
+
+  function cancelBreeding(): boolean {
+    if (!incubator.breeding) return false;
+    incubator.breeding = null;
+    save();
+    return true;
+  }
+
+  function getBreedingProgress(): { progress: number; remainingMs: number } | null {
+    if (!incubator.breeding) return null;
+    const elapsed = Date.now() - incubator.breeding.startedAt;
+    const progress = Math.min(1, elapsed / INCUBATION_DURATION_MS);
+    const remainingMs = Math.max(0, INCUBATION_DURATION_MS - elapsed);
+    return { progress, remainingMs };
+  }
+
+  function checkIncubation(): { hatched: boolean; baby?: FishData; died?: boolean; deathReason?: string } | null {
+    if (!incubator.breeding) return null;
+    
+    const elapsed = Date.now() - incubator.breeding.startedAt;
+    if (elapsed < INCUBATION_DURATION_MS) return null;
+
+    const breeding = incubator.breeding;
+    const parent1 = fish.value.find(f => f.id === breeding.parent1Id);
+    const parent2 = fish.value.find(f => f.id === breeding.parent2Id);
+
+    // Calculate mortality
+    let mortalityChance = BASE_MORTALITY_CHANCE;
+    if (parent1 && parent2 && checkInbreeding(parent1, parent2)) {
+      mortalityChance += 0.10;
+    }
+    if (breeding.babyGenetics.mutation === "sickly") {
+      mortalityChance += 0.15;
+    }
+
+    const died = Math.random() < mortalityChance;
+
+    incubator.lastBreedTime = Date.now();
+    incubator.breeding = null;
+
+    if (died) {
+      const deathReason = breeding.babyGenetics.mutation === "sickly" 
+        ? "The sickly baby didn't survive incubation..."
+        : "Sadly, the baby didn't survive...";
+      save();
+      return { hatched: false, died: true, deathReason };
+    }
+
+    // Create the baby fish
+    const maxGen = Math.max(parent1?.generation ?? 0, parent2?.generation ?? 0);
+    const babyFish: FishData = normalizeFish({
+      id: Date.now(),
+      type: breeding.babyType,
+      name: breeding.babyName,
+      x: Math.random() * 80 + 10,
+      y: Math.random() * 60 + 20,
+      hunger: 100,
+      health: Math.round(100 * (breeding.babyGenetics.healthMod ?? 1)),
+      speed: 2 * (breeding.babyGenetics.speedMod ?? 1),
+      genetics: breeding.babyGenetics,
+      generation: maxGen + 1,
+      parentIds: [breeding.parent1Id, breeding.parent2Id],
+      sicklyWatchUntil: breeding.babyGenetics.mutation === "sickly" 
+        ? Date.now() + SICKLY_WATCH_DURATION_MS 
+        : undefined,
+    });
+
+    // Check if tank has space
+    if (fish.value.length >= tankCapacity.value) {
+      incubator.queuedBaby = {
+        type: babyFish.type,
+        genetics: babyFish.genetics!,
+        name: babyFish.name,
+        generation: babyFish.generation!,
+        parentIds: babyFish.parentIds!,
+      };
+      save();
+      return { hatched: true, baby: babyFish };
+    }
+
+    fish.value.push(babyFish);
+    checkAchievements();
+    save();
+    return { hatched: true, baby: babyFish };
+  }
+
+  function spawnQueuedBaby(): FishData | null {
+    if (!incubator.queuedBaby) return null;
+    if (fish.value.length >= tankCapacity.value) return null;
+
+    const queued = incubator.queuedBaby;
+    const babyFish: FishData = normalizeFish({
+      id: Date.now(),
+      type: queued.type,
+      name: queued.name,
+      x: Math.random() * 80 + 10,
+      y: Math.random() * 60 + 20,
+      hunger: 100,
+      health: Math.round(100 * (queued.genetics.healthMod ?? 1)),
+      speed: 2 * (queued.genetics.speedMod ?? 1),
+      genetics: queued.genetics,
+      generation: queued.generation,
+      parentIds: queued.parentIds,
+      sicklyWatchUntil: queued.genetics.mutation === "sickly" 
+        ? Date.now() + SICKLY_WATCH_DURATION_MS 
+        : undefined,
+    });
+
+    fish.value.push(babyFish);
+    incubator.queuedBaby = null;
+    checkAchievements();
+    save();
+    return babyFish;
+  }
+
+  function getEligibleBreedingPartners(fishId: number): FishData[] {
+    const targetFish = fish.value.find(f => f.id === fishId);
+    if (!targetFish) return [];
+    
+    return fish.value.filter(f => {
+      if (f.id === fishId) return false;
+      if (f.type !== targetFish.type) return false;
+      if (f.health < MIN_PARENT_HEALTH) return false;
+      if (f.hunger < MIN_PARENT_HUNGER) return false;
+      return true;
+    });
+  }
+
+  function clearBreedingResult() {
+    pendingBreedingResult.value = null;
   }
 
   function chargeFlake() {
@@ -1137,6 +1454,46 @@ export const useGameStore = defineStore("game", () => {
       pendingVisitorArrival.value = true;
     }
 
+    // ── Breeding / Incubation logic ─────────────────────────────────────────
+    if (incubator.breeding) {
+      const result = checkIncubation();
+      if (result) {
+        if (result.died) {
+          pendingBreedingResult.value = { success: false, deathReason: result.deathReason };
+        } else if (result.baby) {
+          pendingBreedingResult.value = { success: true, baby: result.baby };
+        }
+      }
+    }
+
+    // Check for sickly fish early death
+    const sicklyDying: FishData[] = [];
+    fish.value.forEach((f) => {
+      if (f.sicklyWatchUntil && now < f.sicklyWatchUntil) {
+        // Roll for early death each tick (very low chance per tick, ~30% over 5 min)
+        const ticksRemaining = (f.sicklyWatchUntil - now) / 5000;
+        const deathChancePerTick = SICKLY_EARLY_DEATH_CHANCE / Math.max(1, ticksRemaining * 12);
+        if (Math.random() < deathChancePerTick) {
+          sicklyDying.push(f);
+        }
+      }
+    });
+    if (sicklyDying.length) {
+      pendingDeaths.value = [
+        ...pendingDeaths.value,
+        ...sicklyDying.map((e) => ({ id: e.id, name: e.name, type: e.type })),
+      ];
+      fish.value = fish.value.filter((f) => !sicklyDying.some((s) => s.id === f.id));
+    }
+
+    // Spawn queued baby if space available
+    if (incubator.queuedBaby && fish.value.length < tankCapacity.value) {
+      const baby = spawnQueuedBaby();
+      if (baby) {
+        pendingBreedingResult.value = { success: true, baby };
+      }
+    }
+
     maybeAutoCollect(now);
     save();
   }
@@ -1224,5 +1581,15 @@ export const useGameStore = defineStore("game", () => {
     buyMedicine,
     doPrestige,
     clearVisitorArrival,
+    // Breeding / Incubator
+    incubator,
+    pendingBreedingResult,
+    buyIncubator,
+    startBreeding,
+    cancelBreeding,
+    getBreedingProgress,
+    canBreed,
+    getEligibleBreedingPartners,
+    clearBreedingResult,
   };
 });
