@@ -55,30 +55,6 @@ type CoinDropView = {
 };
 
 
-const placedDecorations = computed(
-  () =>
-    game.decorations
-      .map((id) => {
-        const preset = DECORATION_PRESETS[id];
-        if (!preset) return null;
-        return {
-          id,
-          label: preset.label,
-          emoji: preset.emoji,
-          style: {
-            left: preset.left,
-            bottom: preset.bottom,
-            transform: `translate(-50%, 0) scale(${preset.scale})`,
-          },
-        };
-      })
-      .filter(Boolean) as Array<{
-      id: string;
-      label: string;
-      emoji: string;
-      style: Record<string, string>;
-    }>
-);
 
 onMounted(() => {
   const ro = new ResizeObserver(() => {
@@ -621,17 +597,6 @@ watch(
       <FishSvg :type="anim.type" :width="40" :height="28" />
     </div>
 
-    <div
-      v-for="decor in placedDecorations"
-      :key="decor.id"
-      class="absolute pointer-events-none select-none drop-shadow-lg"
-      :class="`decor-${decor.id}`"
-      :style="decor.style"
-      :aria-label="decor.label"
-      :title="decor.label">
-      <span class="text-5xl md:text-6xl">{{ decor.emoji }}</span>
-    </div>
-
     <!-- Rare visitor fish -->
     <Transition name="visitor-appear">
       <div
@@ -732,21 +697,6 @@ watch(
   animation: bubbleRise 2.5s ease-in-out infinite;
 }
 
-@keyframes kelpSway {
-  from { transform: rotate(-8deg); }
-  to   { transform: rotate(8deg); }
-}
-
-@keyframes coralPulse {
-  from { filter: brightness(0.9) saturate(1); }
-  to   { filter: brightness(1.15) saturate(1.3); }
-}
-
-@keyframes bubbleRise {
-  0%   { transform: translateY(0) scale(1); opacity: 1; }
-  50%  { transform: translateY(-6px) scale(1.05); opacity: 0.85; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
 
 /* Rare visitor fish — drifts from left edge to right edge */
 .visitor-fish {
@@ -796,9 +746,6 @@ watch(
     animation-timing-function: linear;
   }
   .fish-dying,
-  .decor-kelp-forest span,
-  .decor-coral-arch span,
-  .decor-bubble-column span,
   .visitor-fish {
     animation: none;
   }

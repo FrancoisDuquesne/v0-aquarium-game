@@ -4,12 +4,13 @@ const now = useNow({ interval: 1000 });
 const showModal = ref(false);
 const showResetConfirm = ref(false);
 const showOfflineModal = ref(false);
+const showStats = ref(false);
 const offlineAmount = ref(0);
 const hasOpenedStore = ref(false);
 
 const toast = useToast();
 
-type Section = "fish" | "shop" | "tools" | "tank" | "goals";
+type Section = "fish" | "shop" | "tank" | "goals";
 
 const menuItems = [
   [
@@ -23,66 +24,10 @@ const menuItems = [
 ];
 
 const initialSection = ref<Section>("fish");
-type ToolType = "flake" | "spoon";
-
-const toolLabels: Record<ToolType, string> = {
-  flake: "🍽️ Flake",
-  spoon: "🥄 Spoon",
-};
-
 const avg = computed(() => game.averageHunger);
-const availableTools = computed<ToolType[]>(() => {
-  const tools: ToolType[] = ["flake"];
-  if (game.tools.spoonOwned) tools.push("spoon");
-  return tools;
-});
-
-const activeToolLabel = computed(
-  () => toolLabels[game.selectedTool as ToolType] ?? game.selectedTool
-);
-
-function cycleTool() {
-  const tools = availableTools.value;
-  if (!tools.length) return;
-  const currentIndex = tools.indexOf(game.selectedTool as ToolType);
-  const next = tools[(currentIndex + 1) % tools.length];
-  if (next !== game.selectedTool) {
-    game.selectTool(next);
-  }
-}
 
 const pendingDrops = computed(() => game.coinDrops.length);
-const collectorStats = computed(
-  () =>
-    COIN_COLLECTOR_LEVELS.find(
-      (entry) => entry.level === game.coinCollector.level
-    ) ?? COIN_COLLECTOR_LEVELS[0]
-);
-const nextCollector = computed(() =>
-  nextCollectorLevel(game.coinCollector.level)
-);
-const collectorCooldownMs = computed(() => {
-  const cooldown = collectorStats.value.cooldown;
-  if (!Number.isFinite(cooldown)) return Infinity;
-  const elapsed = now.value.getTime() - game.coinCollector.lastSweep;
-  return Math.max(0, cooldown - elapsed);
-});
-const collectorReady = computed(() => collectorCooldownMs.value <= 0);
 const collectorHasUpgrade = computed(() => game.coinCollector.level > 0);
-const collectorButtonLabel = computed(() =>
-  collectorReady.value
-    ? "🧺 Sweep drops"
-    : `🧺 ${Math.ceil(collectorCooldownMs.value / 1000)}s`
-);
-const canSweep = computed(() => collectorReady.value && pendingDrops.value > 0);
-
-const autoFeederLabel = computed(() => {
-  if (!game.autoFeeder.owned) return "🤖";
-  if (!game.autoFeeder.active) return "🤖 Off";
-  const elapsed = now.value.getTime() - game.autoFeeder.lastFeedTime;
-  const remaining = Math.max(0, Math.ceil((game.autoFeeder.feedInterval - elapsed) / 1000));
-  return remaining > 0 ? `🤖 ${remaining}s` : "🤖 Now";
-});
 
 const boostBadges = computed(
   () =>
@@ -100,15 +45,6 @@ const boostBadges = computed(
       })
       .filter(Boolean) as { id: string; label: string }[]
 );
-
-function sweepCollector() {
-  game.manualCollectorSweep();
-}
-
-function openToolModal() {
-  initialSection.value = "tools";
-  showModal.value = true;
-}
 
 function openSection(section: Section) {
   initialSection.value = section;
@@ -326,41 +262,8 @@ watch(
             class="shadow" />
         </div>
       </div>
-      <div class="flex gap-2">
-        <UButtonGroup size="xs" class="w-fit shadow-xl rounded-xl">
-          <UButton
-            color="neutral"
-            variant="soft"
-            :label="activeToolLabel"
-            @click="cycleTool" />
-          <UButton
-            color="neutral"
-            variant="soft"
-            icon="i-mdi-chevron-down"
-            aria-label="Open tool chooser"
-            @click="openToolModal" />
-        </UButtonGroup>
+      <div v-if="pendingDrops > 5 && !collectorHasUpgrade" class="flex gap-2">
         <UButton
-          v-if="game.autoFeeder.owned"
-          class="w-fit shadow-xl"
-          size="xs"
-          :variant="game.autoFeeder.active ? 'solid' : 'outline'"
-          :color="game.autoFeeder.active ? 'success' : 'neutral'"
-          :label="autoFeederLabel"
-          @click="game.toggleAutoFeeder()" />
-        <div
-          v-if="collectorHasUpgrade"
-          class="flex items-center gap-2 flex-wrap">
-          <UButton
-            class="w-fit shadow-xl"
-            size="xs"
-            color="warning"
-            :disabled="!canSweep"
-            :label="collectorButtonLabel"
-            @click="sweepCollector" />
-        </div>
-        <UButton
-          v-if="pendingDrops > 5 && !collectorHasUpgrade"
           class="w-fit shadow-xl"
           size="xs"
           color="warning"
@@ -407,12 +310,13 @@ watch(
           <span class="text-base leading-none">🛒</span>
           <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Shop</span>
         </button>
-        <!-- Tools -->
+        <!-- Stats -->
         <button
-          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl text-white/50 hover:text-white/80 transition-all focus:outline-none"
-          @click="openSection('tools')">
-          <span class="text-base leading-none">⚒️</span>
-          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Tools</span>
+          class="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all focus:outline-none"
+          :class="showStats ? 'text-cyan-300' : 'text-white/50 hover:text-white/80'"
+          @click="showStats = !showStats">
+          <span class="text-base leading-none">📊</span>
+          <span class="text-[10px] font-semibold uppercase tracking-wide leading-none">Stats</span>
         </button>
         <!-- Tank -->
         <button
@@ -437,6 +341,9 @@ watch(
         </div>
       </div>
     </div>
+
+    <ToolsPanel />
+    <TankStatsPanel v-if="showStats" @close="showStats = false" />
 
     <InventoryModal
       v-model="showModal"

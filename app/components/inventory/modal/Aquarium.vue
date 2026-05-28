@@ -12,12 +12,8 @@ const backgrounds = computed(() =>
   )
 );
 
-const activeDecor = computed(() =>
-  game.decorations.map((id) => DECORATION_PRESETS[id]).filter(Boolean)
-);
-
 const breakdown = computed(() =>
-  maintenanceBreakdown(game.fish, game.upgrades, game.decorations)
+  maintenanceBreakdown(game.fish, game.upgrades)
 );
 const nextChargeIn = computed(() => {
   const elapsed = now.value.getTime() - game.lastMaintenanceTick;
@@ -34,7 +30,6 @@ const categories = [
   { icon: "⚡", label: "Electricity", desc: "Base power + upgrades",          key: "power" as const },
   { icon: "💧", label: "Water",       desc: "Per-fish filtration",             key: "water" as const },
   { icon: "🍤", label: "Food",        desc: "Base supply + per fish",          key: "food"  as const },
-  { icon: "🪸", label: "Décor",       desc: "Decoration upkeep",               key: "decor" as const },
 ];
 </script>
 
@@ -99,22 +94,6 @@ const categories = [
       </div>
     </section>
 
-    <!-- Decorations -->
-    <section class="space-y-2.5">
-      <h3 class="text-[10px] font-bold uppercase tracking-widest text-white/30">Active Decorations</h3>
-      <div v-if="activeDecor.length" class="flex flex-wrap gap-2">
-        <span
-          v-for="d in activeDecor"
-          :key="d.label"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-          style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);">
-          <span>{{ d.emoji }}</span>
-          <span class="text-white/60">{{ d.label }}</span>
-        </span>
-      </div>
-      <p v-else class="text-xs text-white/30">None — buy some in the Shop → Décor tab.</p>
-    </section>
-
     <!-- Operating costs -->
     <section class="space-y-3">
       <h3 class="text-[10px] font-bold uppercase tracking-widest text-white/30">Operating Costs</h3>
@@ -162,7 +141,6 @@ const categories = [
           <li>Fewer fish = lower water &amp; food costs</li>
           <li>Sharks cost 4× more water than neons</li>
           <li>Each tank upgrade adds ½ coin/cycle to electricity</li>
-          <li>Decorations each add ½ coin/cycle</li>
           <li>Offline maintenance runs at 25% rate</li>
         </ul>
       </div>

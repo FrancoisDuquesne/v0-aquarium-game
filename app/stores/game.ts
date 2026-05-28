@@ -108,7 +108,6 @@ interface GameState {
   background: string;
   coinCollector: CoinCollectorState;
   upgrades: UpgradesState;
-  decorations: string[];
   activeBoosts: ActiveBoost[];
   lastMaintenanceTick: number;
   purchasedExpansions: string[];
@@ -166,13 +165,6 @@ function resolveUpgrades(
   value: Partial<UpgradesState> | undefined
 ): UpgradesState {
   return { ...DEFAULT_UPGRADES, ...value };
-}
-
-function resolveDecorations(value: unknown): string[] {
-  if (!Array.isArray(value)) return [...DEFAULT_DECORATIONS];
-  return value
-    .map((entry) => (typeof entry === "string" ? entry : ""))
-    .filter(Boolean);
 }
 
 function resolveActiveBoosts(value: unknown): ActiveBoost[] {
@@ -279,7 +271,7 @@ export const useGameStore = defineStore("game", () => {
     ...DEFAULT_COIN_COLLECTOR,
   });
   const upgrades = reactive<UpgradesState>({ ...DEFAULT_UPGRADES });
-  const decorations = ref<string[]>([...DEFAULT_DECORATIONS]);
+  const netIncomeHistory = ref<number[]>([]);
   const activeBoosts = ref<ActiveBoost[]>(
     DEFAULT_BOOSTS.map((boost) => ({ ...boost })) as ActiveBoost[]
   );
@@ -376,7 +368,6 @@ export const useGameStore = defineStore("game", () => {
       const resolvedBackground = normalizeBackgroundPath(parsed.background);
       const resolvedCollector = resolveCoinCollector(parsed.coinCollector);
       const resolvedUpgrades = resolveUpgrades(parsed.upgrades);
-      const resolvedDecorations = resolveDecorations(parsed.decorations);
       const resolvedBoosts = resolveActiveBoosts(parsed.activeBoosts);
 
       let resolvedCoins =
@@ -402,7 +393,7 @@ export const useGameStore = defineStore("game", () => {
 
       const offlineMaintIntervals = Math.floor(offlineTime / MAINTENANCE_INTERVAL_MS);
       if (offlineMaintIntervals > 0 && resolvedFish.length > 0) {
-        const maintCost = calculateMaintenance(resolvedFish, resolvedUpgrades, resolvedDecorations);
+        const maintCost = calculateMaintenance(resolvedFish, resolvedUpgrades);
         const offlineMaint = Math.floor(maintCost * offlineMaintIntervals * 0.25);
         resolvedCoins = Math.max(MAINTENANCE_GRACE_LIMIT, resolvedCoins - offlineMaint);
       }
@@ -414,8 +405,10 @@ export const useGameStore = defineStore("game", () => {
       Object.assign(tools, resolvedTools);
       Object.assign(coinCollector, resolvedCollector);
       Object.assign(upgrades, resolvedUpgrades);
-      decorations.value = [...resolvedDecorations];
       activeBoosts.value = resolvedBoosts;
+      netIncomeHistory.value = Array.isArray((parsed as Record<string, unknown>).netIncomeHistory)
+        ? ((parsed as Record<string, unknown>).netIncomeHistory as number[]).filter((n) => typeof n === "number").slice(-30)
+        : [];
       coinDrops.value = [];
       selectedTool.value = resolvedSelectedTool;
       hasEverFed.value = resolvedHasEverFed;
@@ -511,7 +504,6 @@ export const useGameStore = defineStore("game", () => {
       background: background.value,
       coinCollector: { ...coinCollector },
       upgrades: { ...upgrades },
-      decorations: [...decorations.value],
       activeBoosts: [...activeBoosts.value],
       lastMaintenanceTick: lastMaintenanceTick.value,
       purchasedExpansions: [...purchasedExpansions.value],
@@ -525,7 +517,8 @@ export const useGameStore = defineStore("game", () => {
       },
       lastVisitorDate: lastVisitorDate.value,
       prestigeLevel: prestigeLevel.value,
-    };
+      netIncomeHistory: [...netIncomeHistory.value],
+    } as GameState & { netIncomeHistory: number[] };
     try {
       localStorage.setItem("aquarium-game", JSON.stringify(payload));
     } catch (e) {
@@ -553,7 +546,6 @@ export const useGameStore = defineStore("game", () => {
         case "fish-count":      unlocked = fish.value.length >= (def.threshold ?? 1); break;
         case "total-coins":     unlocked = totalCoinsCollected.value >= (def.threshold ?? 0); break;
         case "care-streak":     unlocked = maxCareStreakEver.value >= (def.threshold ?? 1); break;
-        case "decor-count":     unlocked = decorations.value.length >= (def.threshold ?? 1); break;
         case "upgrade-count":   unlocked = upgradeCount >= (def.threshold ?? 1); break;
         case "species-count":   unlocked = fishTypes.size >= (def.threshold ?? 1); break;
         case "auto-feeder":     unlocked = autoFeeder.owned; break;
@@ -919,16 +911,6 @@ export const useGameStore = defineStore("game", () => {
     return true;
   }
 
-  function buyDecoration(id: string, cost: number) {
-    if (decorations.value.includes(id)) return false;
-    if (coins.value < cost) return false;
-    coins.value -= cost;
-    decorations.value = [...decorations.value, id];
-    checkAchievements();
-    save();
-    return true;
-  }
-
   function isBoostActive(id: string) {
     const now = Date.now();
     return activeBoosts.value.some(
@@ -1009,7 +991,6 @@ export const useGameStore = defineStore("game", () => {
     const updatedFish: FishData[] = [];
 
     const friendCountCapped = Math.min(2, fish.value.length - 1);
-    const boredDecorReduction = decorations.value.length * BOREDOM_DECOR_REDUCTION;
 
     fish.value.forEach((entry) => {
       const live = livePositions.get(entry.id);
@@ -1034,7 +1015,7 @@ export const useGameStore = defineStore("game", () => {
       const personalityMod = entry.personality
         ? (PERSONALITY_PROFILES[entry.personality as PersonalityType]?.boredomMod ?? 1.0)
         : 1.0;
-      const boredNet = BOREDOM_BASE_RATE - boredDecorReduction - friendCountCapped * BOREDOM_FRIEND_REDUCTION;
+      const boredNet = BOREDOM_BASE_RATE - friendCountCapped * BOREDOM_FRIEND_REDUCTION;
       const boredRate = Math.max(BOREDOM_BASE_RATE * 0.2, boredNet) * personalityMod;
       const nextBoredom = clamp(entry.boredom + boredRate, 0, 100);
 
@@ -1108,9 +1089,14 @@ export const useGameStore = defineStore("game", () => {
     }
 
     if (now - lastMaintenanceTick.value >= MAINTENANCE_INTERVAL_MS) {
-      const cost = calculateMaintenance(fish.value, upgrades, decorations.value);
+      const cost = calculateMaintenance(fish.value, upgrades);
       coins.value = Math.max(MAINTENANCE_GRACE_LIMIT, coins.value - cost);
       lastMaintenanceTick.value = now;
+      const incomePerMin = fish.value.reduce((sum, f) => sum + coinsPerMinuteFor(f.type), 0);
+      const net = Math.round((incomePerMin - cost) * 10) / 10;
+      const updated = [...netIncomeHistory.value, net];
+      if (updated.length > 30) updated.splice(0, updated.length - 30);
+      netIncomeHistory.value = updated;
     }
 
     // ── Visitor logic ───────────────────────────────────────────────────────
@@ -1172,8 +1158,8 @@ export const useGameStore = defineStore("game", () => {
     coinDrops,
     coinCollector,
     upgrades,
-    decorations,
     activeBoosts,
+    netIncomeHistory,
     coinMultiplier,
     isCollectorReady,
     collectorCapacity,
@@ -1197,7 +1183,6 @@ export const useGameStore = defineStore("game", () => {
     manualCollectorSweep,
     buyCoinCollectorUpgrade,
     buyUpgrade,
-    buyDecoration,
     activateBoost,
     buyTankExpansion,
     clearPendingDeaths,

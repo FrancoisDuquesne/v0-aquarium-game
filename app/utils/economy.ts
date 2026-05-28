@@ -27,8 +27,7 @@ export function abbreviateCoins(n: number): string {
 
 export function calculateMaintenance(
   fish: Array<{ type: string }>,
-  upgrades: { gourmetFeed: boolean; luxeDecor: boolean; clarityFilters: boolean },
-  decorations: string[]
+  upgrades: { gourmetFeed: boolean; luxeDecor: boolean; clarityFilters: boolean }
 ): number {
   const upgradeCount = [
     upgrades.gourmetFeed,
@@ -41,14 +40,12 @@ export function calculateMaintenance(
     0
   );
   const food = FOOD_MAINTENANCE_BASE + fish.length * FOOD_PER_FISH;
-  const decor = decorations.length * DECOR_MAINTENANCE_COST;
-  return Math.ceil(power + water + food + decor);
+  return Math.ceil(power + water + food);
 }
 
 export function maintenanceBreakdown(
   fish: Array<{ type: string }>,
-  upgrades: { gourmetFeed: boolean; luxeDecor: boolean; clarityFilters: boolean },
-  decorations: string[]
+  upgrades: { gourmetFeed: boolean; luxeDecor: boolean; clarityFilters: boolean }
 ) {
   const upgradeCount = [
     upgrades.gourmetFeed,
@@ -60,6 +57,5 @@ export function maintenanceBreakdown(
     .reduce((sum, f) => sum + (MAINTENANCE_WATER_COST[f.type] ?? 0.5), 0)
     .toFixed(1);
   const food = +(FOOD_MAINTENANCE_BASE + fish.length * FOOD_PER_FISH).toFixed(1);
-  const decor = +(decorations.length * DECOR_MAINTENANCE_COST).toFixed(1);
-  return { power, water, food, decor, total: Math.ceil(power + water + food + decor) };
+  return { power, water, food, total: Math.ceil(power + water + food) };
 }

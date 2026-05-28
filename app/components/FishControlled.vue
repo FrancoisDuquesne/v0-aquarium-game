@@ -54,16 +54,26 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
 
       <!-- Status bars below fish -->
       <div
-        class="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-col gap-px pointer-events-none"
-        :style="{ width: barWidth + 'px' }">
-        <div class="h-1 w-full bg-black/30 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-[width] duration-700" :class="healthBarClass" :style="{ width: health + '%' }" />
+        class="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-col gap-[3px] pointer-events-none px-1 py-0.5 rounded-md"
+        style="background: rgba(0,0,0,0.35);"
+        :style="{ width: (barWidth + 8) + 'px' }">
+        <div class="flex items-center gap-1">
+          <span class="text-[8px] leading-none w-3 text-center shrink-0">❤️</span>
+          <div class="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-[width] duration-700" :class="healthBarClass" :style="{ width: health + '%' }" />
+          </div>
         </div>
-        <div class="h-1 w-full bg-black/30 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-[width] duration-700" :class="hungerBarClass" :style="{ width: hunger + '%' }" />
+        <div class="flex items-center gap-1">
+          <span class="text-[8px] leading-none w-3 text-center shrink-0">🍽️</span>
+          <div class="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-[width] duration-700" :class="hungerBarClass" :style="{ width: hunger + '%' }" />
+          </div>
         </div>
-        <div class="h-1 w-full bg-black/30 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-[width] duration-700" :class="moodBarClass" :style="{ width: (100 - boredom) + '%' }" />
+        <div class="flex items-center gap-1">
+          <span class="text-[8px] leading-none w-3 text-center shrink-0">😊</span>
+          <div class="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-[width] duration-700" :class="moodBarClass" :style="{ width: (100 - boredom) + '%' }" />
+          </div>
         </div>
       </div>
 
@@ -72,7 +82,7 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         v-if="name"
         class="absolute bottom-full left-1/2 -translate-x-1/2 pb-0.5 pointer-events-none whitespace-nowrap">
         <span
-          class="fish-label text-[9px] text-white/85 font-semibold leading-none select-none flex items-center gap-0.5"
+          class="fish-label text-[10px] text-white font-semibold leading-none select-none flex items-center gap-0.5"
           style="text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.8)">
           {{ name }}<span v-if="careStreak && careStreak > 0" class="text-[8px] text-orange-400">🔥{{ careStreak }}</span>
         </span>

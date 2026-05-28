@@ -1,14 +1,13 @@
 <script setup lang="ts">
 const game = useGameStore();
 
-type Category = "fish" | "upgrades" | "tank" | "decor" | "powerups";
+type Category = "fish" | "upgrades" | "tank" | "powerups";
 const activeCategory = ref<Category>("fish");
 
 const categories: { id: Category; icon: string; label: string }[] = [
   { id: "fish",     icon: "🐠", label: "Fish"      },
   { id: "upgrades", icon: "⚙️", label: "Upgrades"  },
   { id: "tank",     icon: "📦", label: "Tank"      },
-  { id: "decor",    icon: "🪸", label: "Décor"     },
   { id: "powerups", icon: "⚡", label: "Power-ups" },
 ];
 
@@ -19,7 +18,6 @@ const ownedUpgrades = computed(() => {
   });
   return owned;
 });
-const ownedDecor = computed(() => new Set(game.decorations));
 const activeBoosts = computed(() => new Set(game.activeBoosts.map((b) => b.id)));
 
 function coinsPerMinute(type: string) {
@@ -206,46 +204,6 @@ const nextCollector = computed(() => nextCollectorLevel(game.coinCollector.level
                   : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25'"
                 :disabled="game.coins < item.cost"
                 @click="game.buyTankExpansion(item.id, item.cost, item.slots)">
-                Buy
-              </button>
-            </div>
-            <p class="text-[10px] text-white/35 leading-snug">{{ item.desc }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Decor -->
-      <div v-else-if="activeCategory === 'decor'">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <div
-            v-for="item in DECOR_ITEMS"
-            :key="item.id"
-            class="rounded-xl p-3 flex flex-col gap-2"
-            style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-center gap-2 min-w-0 flex-1">
-                <div class="w-10 h-10 flex items-center justify-center rounded-lg text-xl shrink-0"
-                  style="background: rgba(255,255,255,0.06);">
-                  {{ item.icon }}
-                </div>
-                <div class="min-w-0">
-                  <p class="text-xs font-semibold text-white truncate">{{ item.name }}</p>
-                  <p class="text-[10px] text-yellow-400/90 font-medium">{{ item.cost }} coins</p>
-                </div>
-              </div>
-              <span
-                v-if="ownedDecor.has(item.id)"
-                class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-400 border border-cyan-500/25">
-                ✓ Owned
-              </span>
-              <button
-                v-else
-                class="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all focus:outline-none"
-                :class="game.coins < item.cost
-                  ? 'bg-white/5 text-white/25 cursor-not-allowed'
-                  : 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 hover:bg-cyan-500/25'"
-                :disabled="game.coins < item.cost"
-                @click="game.buyDecoration(item.id, item.cost)">
                 Buy
               </button>
             </div>

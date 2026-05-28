@@ -16,13 +16,6 @@ export interface UpgradeShopItem {
   icon: string;
 }
 
-export interface DecorShopItem {
-  id: string;
-  name: string;
-  cost: number;
-  desc: string;
-  icon: string;
-}
 
 export interface PowerUpShopItem {
   id: string;
@@ -42,13 +35,6 @@ export interface CoinCollectorLevel {
   description: string;
 }
 
-export interface DecorationPreset {
-  label: string;
-  left: string;
-  bottom: string;
-  scale: number;
-  emoji: string;
-}
 
 export const AVAILABLE_BACKGROUNDS = [
   "/backgrounds/0.webp",
@@ -78,29 +64,6 @@ export const BACKGROUND_LABELS: Record<string, string> = {
 
 export const DEFAULT_BACKGROUND = AVAILABLE_BACKGROUNDS[0];
 
-export const DECORATION_PRESETS: Record<string, DecorationPreset> = {
-  "coral-arch": {
-    label: "Coral Arch",
-    left: "20%",
-    bottom: "8%",
-    scale: 1.1,
-    emoji: "🪸",
-  },
-  "kelp-forest": {
-    label: "Kelp Forest",
-    left: "80%",
-    bottom: "7%",
-    scale: 1.2,
-    emoji: "🌿",
-  },
-  "bubble-column": {
-    label: "Bubble Column",
-    left: "50%",
-    bottom: "14%",
-    scale: 1.05,
-    emoji: "🫧",
-  },
-};
 
 export const FLOOR_Y = 96;
 export const SINK_SPEED_PER_S = 6;
@@ -190,7 +153,6 @@ export const DEFAULT_UPGRADES = {
   clarityFilters: false,
 };
 
-export const DEFAULT_DECORATIONS: string[] = [];
 
 export const DEFAULT_BOOSTS: Array<{
   id: string;
@@ -253,7 +215,6 @@ export const HEALTH_REGEN_RATE = 0.3;
 export const HEALTH_LOW_THRESHOLD = 40;
 export const HEALTH_HIGH_THRESHOLD = 70;
 export const BOREDOM_BASE_RATE = 1.5;
-export const BOREDOM_DECOR_REDUCTION = 1.5;
 export const BOREDOM_FRIEND_REDUCTION = 1.0;
 export const BOREDOM_FEED_BONUS = 15;
 export const BOREDOM_HIGH_THRESHOLD = 75;
@@ -266,7 +227,7 @@ export const BASE_POWER_COST = 1;
 export const POWER_PER_UPGRADE = 0.5;
 export const FOOD_MAINTENANCE_BASE = 0.5;
 export const FOOD_PER_FISH = 0.4;
-export const DECOR_MAINTENANCE_COST = 0.5;
+
 export const MAINTENANCE_WATER_COST: Record<string, number> = {
   shark: 2.0,
   tropical: 1.0,
@@ -412,29 +373,6 @@ export const TANK_UPGRADES: UpgradeShopItem[] = [
   },
 ];
 
-export const DECOR_ITEMS: DecorShopItem[] = [
-  {
-    id: "coral-arch",
-    name: "Coral Archway",
-    cost: 260,
-    desc: "A vibrant coral centerpiece that gives your tank instant depth.",
-    icon: "🪸",
-  },
-  {
-    id: "kelp-forest",
-    name: "Kelp Forest",
-    cost: 210,
-    desc: "Tall kelp fronds that sway gently and make shy fish bolder.",
-    icon: "🌿",
-  },
-  {
-    id: "bubble-column",
-    name: "Bubble Column",
-    cost: 190,
-    desc: "Playful bubbles for ambience and a hint that coins float longer.",
-    icon: "🫧",
-  },
-];
 
 export const POWER_UP_ITEMS: PowerUpShopItem[] = [
   {
@@ -567,7 +505,6 @@ export interface AchievementDef {
     | "fish-count"
     | "total-coins"
     | "care-streak"
-    | "decor-count"
     | "upgrade-count"
     | "species-count"
     | "auto-feeder"
@@ -587,9 +524,7 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { id: "tank-full",    name: "Full House",           desc: "Fill the tank to capacity.",                icon: "🏠", condition: "tank-full"                      },
   { id: "streak-3",     name: "Hot Streak",           desc: "Reach a care streak of 3 on any fish.",     icon: "🔥", condition: "care-streak",  threshold: 3     },
   { id: "streak-5",     name: "On Fire",              desc: "Reach the maximum care streak of 5.",       icon: "🌋", condition: "care-streak",  threshold: 5     },
-  { id: "any-decor",    name: "Interior Design",      desc: "Buy any decoration.",                       icon: "🪸", condition: "decor-count",  threshold: 1     },
-  { id: "all-decor",    name: "Aquascape Artist",     desc: "Own all decorations.",                      icon: "🌿", condition: "decor-count",  threshold: 3     },
-  { id: "any-upgrade",  name: "Tech Savvy",           desc: "Buy any tank upgrade.",                     icon: "⚙️", condition: "upgrade-count", threshold: 1    },
+{ id: "any-upgrade",  name: "Tech Savvy",           desc: "Buy any tank upgrade.",                     icon: "⚙️", condition: "upgrade-count", threshold: 1    },
   { id: "all-upgrades", name: "Fully Equipped",       desc: "Own all tank upgrades.",                    icon: "🔧", condition: "upgrade-count", threshold: 3    },
   { id: "five-species", name: "Collector",             desc: "Own 5 different species.",                  icon: "📚", condition: "species-count", threshold: 5    },
   { id: "auto-feeder",  name: "Never Miss a Meal",    desc: "Install the auto-feeder.",                  icon: "🤖", condition: "auto-feeder"                    },

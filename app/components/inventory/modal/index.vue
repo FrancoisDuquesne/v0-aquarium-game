@@ -2,7 +2,7 @@
 const game = useGameStore();
 const open = defineModel<boolean>({ required: true });
 
-type Section = "fish" | "shop" | "tools" | "tank" | "goals";
+type Section = "fish" | "shop" | "tank" | "goals";
 
 const props = withDefaults(
   defineProps<{ initialSection?: Section }>(),
@@ -25,7 +25,6 @@ const hungryFishCount = computed(
 const sections: { id: Section; icon: string; label: string }[] = [
   { id: "fish",  icon: "🐟", label: "Fish"  },
   { id: "shop",  icon: "🛒", label: "Shop"  },
-  { id: "tools", icon: "⚒️", label: "Tools" },
   { id: "tank",  icon: "🌊", label: "Tank"  },
   { id: "goals", icon: "🏆", label: "Goals" },
 ];
@@ -97,8 +96,6 @@ const goToShop = () => { activeSection.value = "shop"; };
                 @go-to-shop="goToShop" />
               <InventoryModalStore
                 v-else-if="activeSection === 'shop'" />
-              <InventoryModalTools
-                v-else-if="activeSection === 'tools'" />
               <InventoryModalAquarium
                 v-else-if="activeSection === 'tank'" />
               <InventoryModalGoals
