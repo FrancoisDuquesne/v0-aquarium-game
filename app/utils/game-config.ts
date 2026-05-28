@@ -245,7 +245,7 @@ export const MAINTENANCE_WATER_COST: Record<string, number> = {
 export const COIN_COLLECTOR_LEVELS: CoinCollectorLevel[] = [
   {
     level: 0,
-    label: "Manual scooping",
+    label: "No sweeper",
     cost: 0,
     cooldown: Number.POSITIVE_INFINITY,
     capacity: 0,
@@ -253,27 +253,27 @@ export const COIN_COLLECTOR_LEVELS: CoinCollectorLevel[] = [
   },
   {
     level: 1,
-    label: "Glass Scoop Drone",
+    label: "Glass Scoop Bot",
     cost: 350,
     cooldown: 12_000,
     capacity: 4,
-    description: "Sweeps a few nearby drops every 12s.",
+    description: "A little bot that trundles back and forth sweeping 4 drops every 12s.",
   },
   {
     level: 2,
-    label: "Magnet Siphon",
+    label: "Magnet Siphon Bot",
     cost: 650,
     cooldown: 8_000,
     capacity: 8,
-    description: "Grabs most drops in range every 8s.",
+    description: "Upgraded with a magnet arm — grabs 8 drops every 8s.",
   },
   {
     level: 3,
-    label: "Nimbus Collector",
+    label: "Nimbus Sweeper",
     cost: 950,
     cooldown: 5_000,
     capacity: 16,
-    description: "Vacuum collects nearly everything instantly.",
+    description: "A hovering nimbus bot that vacuums 16 drops every 5s.",
   },
 ];
 

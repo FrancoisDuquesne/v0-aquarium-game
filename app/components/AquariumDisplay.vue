@@ -479,15 +479,16 @@ function collectDrop(id: number) {
 }
 
 function onClick(e: MouseEvent) {
-  if (game.selectedTool === "spoon") {
-    const cx = e.clientX,
-      cy = e.clientY;
+  if (game.tools.spoonOwned) {
+    const cx = e.clientX, cy = e.clientY;
     for (let i = 0; i < SPOON_SCATTER_COUNT; i++) {
       const ang = Math.random() * Math.PI * 2;
       const r = Math.random() * SPOON_SCATTER_RADIUS;
       addFlakeAt(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
     }
-  } else addFlakeAt(e.clientX, e.clientY);
+  } else {
+    addFlakeAt(e.clientX, e.clientY);
+  }
 }
 
 function onPlayWithFish(fishId: number) {
@@ -617,6 +618,7 @@ watch(
       </div>
     </Transition>
 
+    <CoinSweeper />
     <BubblesLayer />
     <div
       class="absolute inset-0 bg-gradient-to-br from-cyan-100/3 via-transparent to-blue-100/3 pointer-events-none animate-pulse"
