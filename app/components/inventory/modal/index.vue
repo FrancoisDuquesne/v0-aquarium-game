@@ -36,13 +36,13 @@ const goToShop = () => { activeSection.value = "shop"; };
 <template>
   <Teleport to="body">
     <Transition name="drawer">
-      <div v-if="open" class="fixed inset-x-0 bottom-0 z-50 flex flex-col">
+      <div v-if="open" class="fixed inset-x-0 bottom-0 z-50 flex flex-col items-center">
         <!-- Backdrop -->
         <div class="fixed inset-0 -z-10" @click="open = false" />
 
         <!-- Drawer panel -->
         <div
-          class="relative rounded-t-2xl flex flex-col overflow-hidden"
+          class="relative rounded-t-2xl flex flex-col overflow-hidden w-full max-w-2xl"
           style="height: 72vh; background: rgba(2, 6, 23, 0.97); border-top: 1px solid rgba(255,255,255,0.08); box-shadow: 0 -8px 40px rgba(0,0,0,0.6);">
 
           <!-- Teal ambient glow at top edge -->
