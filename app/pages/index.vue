@@ -24,10 +24,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    class="h-screen w-screen relative overflow-hidden bg-gradient-to-b from-blue-400 via-blue-600 to-blue-900 game-fade-in">
-    <AquariumDisplay />
-    <GameUI />
+  <div class="h-screen w-screen flex items-center justify-center bg-[#061220]">
+    <div
+      class="relative h-screen w-full max-w-[480px] overflow-hidden bg-gradient-to-b from-blue-400 via-blue-600 to-blue-900 game-fade-in">
+      <AquariumDisplay />
+      <GameUI />
+    </div>
   </div>
 </template>
 

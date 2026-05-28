@@ -70,24 +70,34 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
       <!-- Fish name label -->
       <div
         v-if="name"
-        class="absolute bottom-full left-1/2 -translate-x-1/2 pb-0.5 text-[9px] text-white/85 font-semibold pointer-events-none whitespace-nowrap leading-none select-none flex items-center gap-0.5"
-        style="text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.8)">
-        {{ name }}<span v-if="careStreak && careStreak > 0" class="text-[8px] text-orange-400">🔥{{ careStreak }}</span>
+        class="absolute bottom-full left-1/2 -translate-x-1/2 pb-0.5 pointer-events-none whitespace-nowrap">
+        <span
+          class="fish-label text-[9px] text-white/85 font-semibold leading-none select-none flex items-center gap-0.5"
+          style="text-shadow: 0 1px 3px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.8)">
+          {{ name }}<span v-if="careStreak && careStreak > 0" class="text-[8px] text-orange-400">🔥{{ careStreak }}</span>
+        </span>
       </div>
 
       <!-- Fed / very happy bubble -->
       <div
         v-if="isBeingFed || hunger > 95"
-        class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs animate-bounce select-none pointer-events-none">
-        {{ isBeingFed ? "🍽️" : "❤️" }}
+        class="absolute -top-6 left-1/2 -translate-x-1/2 animate-bounce pointer-events-none">
+        <span class="fish-label text-xs select-none">{{ isBeingFed ? "🍽️" : "❤️" }}</span>
       </div>
 
       <!-- Boredom indicator — tap fish to cheer them up -->
       <div
         v-if="boredom > BOREDOM_HIGH_THRESHOLD && !isBeingFed"
-        class="absolute -top-5 -right-1 text-xs select-none pointer-events-none opacity-80">
-        😟
+        class="absolute -top-5 -right-1 select-none pointer-events-none opacity-80">
+        <span class="fish-label text-xs">😟</span>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.fish-label {
+  display: inline-block;
+  transform: scaleX(var(--face, 1));
+}
+</style>

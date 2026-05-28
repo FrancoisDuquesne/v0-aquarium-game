@@ -382,7 +382,7 @@ watch(
     </div>
 
     <!-- Bottom nav -->
-    <div class="fixed bottom-4 left-4 right-4 z-20">
+    <div class="absolute bottom-4 left-4 right-4 z-20">
       <div class="rounded-2xl p-1 flex gap-0.5 justify-center w-fit mx-auto shadow-2xl"
         style="background: rgba(2,6,23,0.88); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px);">
         <!-- Fish -->

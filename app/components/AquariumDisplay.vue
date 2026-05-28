@@ -131,6 +131,7 @@ function setNodeTransform(
 ) {
   const { x, y } = pctToPx(xPct, yPct);
   node.style.transform = `translate3d(${x}px, ${y}px, 0) scaleX(${face})`;
+  node.style.setProperty('--face', String(face));
 }
 
 let lastTs = performance.now();
