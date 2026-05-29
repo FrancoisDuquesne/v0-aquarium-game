@@ -58,7 +58,10 @@ const categories = [
 
     <!-- Background section -->
     <section class="space-y-2.5">
-      <h3 class="text-[10px] font-bold uppercase tracking-widest text-white/30">Background</h3>
+      <div class="flex items-center justify-between">
+        <h3 class="text-[10px] font-bold uppercase tracking-widest text-white/30">Background</h3>
+        <span class="text-[10px] text-white/25">All unlocked — tap to switch</span>
+      </div>
       <div class="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
         <div
           v-for="bg in backgrounds"

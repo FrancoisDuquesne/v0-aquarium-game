@@ -428,6 +428,7 @@ function mutationInfo(mutation?: string) {
 
       <!-- Power-ups -->
       <div v-else-if="activeCategory === 'powerups'">
+        <p class="text-xs text-white/35 mb-3">One-time purchases that can be used repeatedly. Stack boosts for maximum earnings.</p>
         <!-- Medicine — one-shot heal for all fish -->
         <div class="rounded-xl p-3 flex flex-col gap-2 mb-3"
           style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
