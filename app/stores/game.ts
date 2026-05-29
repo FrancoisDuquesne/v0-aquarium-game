@@ -637,31 +637,11 @@ export const useGameStore = defineStore("game", () => {
     _saveTimer = setTimeout(_flushSave, 1000);
   }
 
-  function checkAchievements() {
-    const fishTypes = new Set(fish.value.map((f) => f.type));
-    const upgradeCount = Object.values(upgrades as Record<string, boolean>).filter(Boolean).length;
-    const isTankFull = fish.value.length >= tankCapacity.value;
-
-    for (const def of ACHIEVEMENT_DEFINITIONS) {
-      if (unlockedAchievements.value.includes(def.id)) continue;
-      let unlocked = false;
-      switch (def.condition) {
-        case "fish-count":      unlocked = fish.value.length >= (def.threshold ?? 1); break;
-        case "total-coins":     unlocked = totalCoinsCollected.value >= (def.threshold ?? 0); break;
-        case "care-streak":     unlocked = maxCareStreakEver.value >= (def.threshold ?? 1); break;
-        case "upgrade-count":   unlocked = upgradeCount >= (def.threshold ?? 1); break;
-        case "species-count":   unlocked = fishTypes.size >= (def.threshold ?? 1); break;
-        case "auto-feeder":     unlocked = autoFeeder.owned; break;
-        case "expansion-owned": unlocked = purchasedExpansions.value.length > 0; break;
-        case "feed-count":      unlocked = totalFeedCount.value >= (def.threshold ?? 1); break;
-        case "tank-full":       unlocked = isTankFull; break;
-      }
-      if (unlocked) {
-        unlockedAchievements.value = [...unlockedAchievements.value, def.id];
-        pendingAchievementUnlocks.value = [...pendingAchievementUnlocks.value, def.id];
-      }
-    }
-  }
+  const { checkAchievements, shiftAchievementUnlock: _shiftAchievement } = setupAchievements({
+    fish, upgrades, autoFeeder, purchasedExpansions, tankCapacity,
+    totalCoinsCollected, maxCareStreakEver, totalFeedCount,
+    unlockedAchievements, pendingAchievementUnlocks,
+  });
 
   function updateMissionProgress(type: string, value: number) {
     dailyState.value.missions.forEach((m) => {
@@ -673,10 +653,7 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function shiftAchievementUnlock(): string | null {
-    if (!pendingAchievementUnlocks.value.length) return null;
-    const [first, ...rest] = pendingAchievementUnlocks.value;
-    pendingAchievementUnlocks.value = rest;
-    return first;
+    return _shiftAchievement();
   }
 
   function clearDailyBonus() {
