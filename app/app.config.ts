@@ -1,8 +1,5 @@
 export default defineAppConfig({
   ui: {
-    toaster: {
-      position: "top-right" as const,
-    },
     badge: {
       variants: {
         size: {
