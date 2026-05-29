@@ -260,16 +260,17 @@ function ageBarColor(ageRatio: number): string {
               <span class="text-xs text-white/30 tabular-nums w-5 text-right">{{ Math.round(100 - f.boredom) }}</span>
             </div>
             <!-- Age bar -->
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5" title="Life remaining">
               <span class="text-xs w-3 text-center leading-none">{{ LIFE_STAGE_INFO[getFishStage(f)].icon }}</span>
               <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
                 <div class="h-full rounded-full transition-all duration-1000"
                   :class="ageBarColor(getFishAgeRatio(f))"
                   :style="{ width: (getFishAgeRatio(f) * 100) + '%' }" />
               </div>
-              <span class="text-xs tabular-nums w-5 text-right"
-                :class="getFishAgeRatio(f) >= LIFE_STAGE_ADULT_END ? 'text-amber-400/70' : 'text-white/30'">
-                {{ ageTimeLeft(f) }}
+              <span class="text-xs tabular-nums text-right"
+                :class="getFishAgeRatio(f) >= LIFE_STAGE_ADULT_END ? 'text-amber-400/70' : 'text-white/30'"
+                style="min-width: 3.5rem;">
+                {{ ageTimeLeft(f) }} left
               </span>
             </div>
           </div>
@@ -308,10 +309,10 @@ function ageBarColor(ageRatio: number): string {
                 color="neutral"
                 variant="soft"
                 size="sm"
-                :title="`List on market for ${game.fishMarketValue(f)} 🪙 (20 min)`"
+                :title="`List on market for ${game.fishMarketValue(f)} 🪙 · sells in 20 min`"
                 @click="game.listFishForSale(f.id)">
-                <span>🏷</span>
-                <span class="list-price">{{ game.fishMarketValue(f).toLocaleString() }}</span>
+                <span class="text-[10px] text-white/55">List</span>
+                <span class="list-price">{{ game.fishMarketValue(f).toLocaleString() }}🪙</span>
               </UButton>
             </div>
           </template>
