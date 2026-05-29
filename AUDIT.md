@@ -65,26 +65,11 @@ Mutate in place; only filter on death.
 
 `save()` is called after nearly every mutation including each `tick()` call. The `_flushSave` function spreads/copies every array, builds a full `GameState` object, and calls `JSON.stringify` on it.
 
-### 3-A · Stop calling save() inside tick()
+### ~~3-A · Stop calling save() inside tick()~~ ✅ DONE
+### ~~3-B · Dirty-flag saves for player actions~~ ✅ DONE (all action saves already in place)
+### ~~3-C · Fix `GameState` interface drift~~ ✅ DONE
 
-**File:** `app/stores/game.ts:1664`
-
-The `tick()` runs every 5s. Adding a 1s-debounced save on top means a localStorage write fires every ~6s in steady state. Nothing that `tick()` mutates (hunger, health, boredom, coinProgress) is so critical that it can't wait for the next natural save.
-
-**Fix:** Remove `save()` from the end of `tick()`. Rely on the `pagehide` listener (already wired at `game.ts:569`) plus saves triggered by explicit player actions (buy, feed, collect).
-
-### 3-B · Add dirty-flag saves for player actions
-
-After removing save from tick, ensure these call sites still save:
-- `feedFish`, `collectCoinDrop`, `collectAll` — keep save
-- `buyFish`, `buyUpgrade`, `activateBoost`, `setBackground`, etc. — keep save
-- `tick` — remove save
-
-### 3-C · Fix `GameState` interface drift
-
-The save payload is cast as `GameState & { netIncomeHistory: number[] }` because `netIncomeHistory` isn't in `GameState`. Several fields are accessed in `load()` via `(parsed as Record<string, unknown>).market` casts because the interface doesn't include them.
-
-**Fix:** Add `netIncomeHistory`, `market`, `listedFish` to the `GameState` interface. Remove all `Record<string, unknown>` casts in `load()`.
+Added `netIncomeHistory`, `market`, `listedFish` to interface; removed all `Record<string,unknown>` casts; payload now uses `satisfies GameState`.
 
 ---
 

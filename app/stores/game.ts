@@ -159,6 +159,9 @@ interface GameState {
   lastVisitorDate: string;
   prestigeLevel: number;
   incubator: IncubatorState;
+  netIncomeHistory: number[];
+  market: { pool: MarketFish[]; lastRefresh: number };
+  listedFish: ListedFish[];
 }
 
 const dropTimers = new Set<number>();
@@ -466,8 +469,8 @@ export const useGameStore = defineStore("game", () => {
       Object.assign(coinCollector, resolvedCollector);
       Object.assign(upgrades, resolvedUpgrades);
       activeBoosts.value = resolvedBoosts;
-      netIncomeHistory.value = Array.isArray((parsed as Record<string, unknown>).netIncomeHistory)
-        ? ((parsed as Record<string, unknown>).netIncomeHistory as number[]).filter((n) => typeof n === "number").slice(-30)
+      netIncomeHistory.value = Array.isArray(parsed.netIncomeHistory)
+        ? parsed.netIncomeHistory.filter((n) => typeof n === "number").slice(-30)
         : [];
       coinDrops.value = [];
       selectedTool.value = resolvedSelectedTool;
@@ -536,7 +539,7 @@ export const useGameStore = defineStore("game", () => {
       visitor.value = null; // don't persist visitors across sessions
 
       // ── Incubator / Breeding ─────────────────────────────────────────────────
-      const savedIncubator = (parsed as Record<string, unknown>).incubator as Partial<IncubatorState> | undefined;
+      const savedIncubator = parsed.incubator as Partial<IncubatorState> | undefined;
       if (savedIncubator) {
         incubator.owned = Boolean(savedIncubator.owned);
         incubator.lastBreedTime = typeof savedIncubator.lastBreedTime === "number" ? savedIncubator.lastBreedTime : 0;
@@ -545,12 +548,12 @@ export const useGameStore = defineStore("game", () => {
       }
 
       // ── Fish Market ───────────────────────────────────────────────────────────
-      const savedMarket = (parsed as Record<string, unknown>).market as { pool?: MarketFish[]; lastRefresh?: number } | undefined;
+      const savedMarket = parsed.market;
       if (savedMarket) {
         market.pool = Array.isArray(savedMarket.pool) ? savedMarket.pool : [];
         market.lastRefresh = typeof savedMarket.lastRefresh === "number" ? savedMarket.lastRefresh : 0;
       }
-      const savedListings = (parsed as Record<string, unknown>).listedFish as ListedFish[] | undefined;
+      const savedListings = parsed.listedFish;
       if (Array.isArray(savedListings)) {
         const loadNow = Date.now();
         // Resolve any listings that expired while offline
@@ -618,7 +621,7 @@ export const useGameStore = defineStore("game", () => {
       },
       market: { pool: market.pool.map(m => ({ ...m })), lastRefresh: market.lastRefresh },
       listedFish: listedFish.value.map(l => ({ ...l })),
-    } as GameState & { netIncomeHistory: number[] };
+    } satisfies GameState;
     try {
       localStorage.setItem("aquarium-game", JSON.stringify(payload));
     } catch (e) {
@@ -1656,7 +1659,6 @@ export const useGameStore = defineStore("game", () => {
     }
 
     checkAchievements();
-    save();
   }
 
   function resetGame() {
