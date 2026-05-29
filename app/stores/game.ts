@@ -307,9 +307,8 @@ export const useGameStore = defineStore("game", () => {
   const pendingDailyBonus = ref(0);
   const visitor = ref<VisitorState | null>(null);
 
-  // Plain (non-reactive) map written by AquariumDisplay each RAF frame; used by
-  // spawnCoinDrop so coin origins match actual on-screen fish positions.
-  const livePositions = new Map<number, { x: number; y: number }>();
+  // Fish positions written by AquariumDisplay; accessed here only for coin drop origins.
+  const livePositions = useDisplayPositions();
   const visitorSpawnAfterMs = ref(0);
   const visitorSessionStartMs = ref(0);
   const lastVisitorDate = ref("");
@@ -1263,7 +1262,6 @@ export const useGameStore = defineStore("game", () => {
     collectorCapacity,
     averageHunger,
     showHowTo,
-    livePositions,
     load,
     save,
     resetGame,

@@ -87,78 +87,22 @@ Pre-computed `speciesPositions` map built once per frame; schooling/territorial 
 
 ---
 
-## Work Package 5 — God Store Decomposition (high effort)
+## ~~Work Package 5 — God Store Decomposition~~ ✅ DONE (steps 1–5 extracted)
 
-`app/stores/game.ts` at 1773 lines is the biggest structural problem. Every feature lives here, making it hard to understand or change any one system without reading the whole file.
+`game.ts` reduced from 1773 → ~1333 lines. Extracted:
+- `utils/breeding.ts` — pure genetics functions (step 1)
+- `composables/useAchievements.ts` — checkAchievements, shiftAchievementUnlock (step 2)
+- `composables/useDailyMissions.ts` — generateDailyMissions, updateMissionProgress, claimMission (step 3)
+- `composables/useFishMarket.ts` — full market/listing system (step 4)
+- `composables/useBreeding.ts` — full incubator/breeding system (step 5)
 
-### Target structure
-
-```
-app/stores/
-  game.ts           ~400 lines  (core: fish, coins, tick, persistence)
-app/composables/
-  useBreeding.ts    ~200 lines  (incubator, genetics, baby generation)
-  useFishMarket.ts  ~100 lines  (market pool, listings, buy/sell)
-  useAchievements.ts ~80 lines  (definitions, check, unlock queue)
-  useDailyMissions.ts ~80 lines (pool, progress, claim, streak)
-  usePrestige.ts     ~40 lines  (canPrestige, doPrestige)
-  useVisitor.ts      ~60 lines  (spawn, feed, timer)
-app/utils/
-  breeding.ts        ~80 lines  (pure: inheritTrait, rollMutation, calculateBabyGenetics)
-  persistence.ts     ~120 lines (load, save, normalizeBackgroundPath, resolvers)
-```
-
-### Extraction order (each step independently testable)
-
-1. **`utils/breeding.ts`** — `inheritTrait`, `rollMutation`, `calculateBabyGenetics`, `checkInbreeding` are pure functions with no store dependency. Extract first.
-
-2. **`composables/useAchievements.ts`** — self-contained: definitions array, `checkAchievements`, `shiftAchievementUnlock`, `pendingAchievementUnlocks`. Reads `fish`, `upgrades`, `autoFeeder`, `purchasedExpansions` from the game store via `useGameStore()`.
-
-3. **`composables/useDailyMissions.ts`** — `generateDailyMissions`, `claimMission`, `updateMissionProgress`, `dailyState`. Self-contained once achievements are extracted.
-
-4. **`composables/useFishMarket.ts`** — `market`, `listedFish`, `getMarketPool`, `buyMarketFish`, `listFishForSale`, `cancelListing`, `checkListings`, `isListed`, `getListingFor`. Minimal deps on core state.
-
-5. **`composables/useBreeding.ts`** — `incubator`, `canBreed`, `startBreeding`, `cancelBreeding`, `checkIncubation`, `spawnQueuedBaby`, `getEligibleBreedingPartners`.
-
-6. **`composables/useVisitor.ts`** — `visitor`, `visitorSpawnAfterMs`, `visitorSessionStartMs`, `lastVisitorDate`, `pendingVisitorArrival`, `feedVisitor`.
-
-7. **`composables/usePrestige.ts`** — `prestigeLevel`, `canPrestige`, `doPrestige`.
-
-8. **`utils/persistence.ts`** — `load`, `_flushSave`, `save`, all `resolve*` helpers, `normalizeBackgroundPath`.
-
-### What stays in `game.ts`
-
-Core game loop: `coins`, `fish`, `coinDrops`, `tick`, `feedFish`, `buyFish`, `removeFish`, `spawnCoinDrop`, `collectCoinDrop`, `collectAll`, `hungerDecayPerTick`, `coinMultiplier`, `livePositions`.
+Steps 6 (visitor) and 7 (prestige) kept inline — each is <15 lines and closely coupled to the tick loop.
 
 ---
 
-## Work Package 6 — `livePositions` Backward Data Flow (medium effort)
+## ~~Work Package 6 — `livePositions` Backward Data Flow~~ ✅ DONE
 
-**File:** `app/stores/game.ts:347`, `app/components/AquariumDisplay.vue:337`
-
-The display component writes fish positions back to the store every RAF frame via `game.livePositions.set(id, pos)`. The store then reads these in `tick()` to origin coin drops at the fish's visual position.
-
-This is architecturally backward: the view is writing state into the store. It also means positions are always the previous frame's values when `tick()` fires.
-
-**Fix (Option A — minimal change):** Move `livePositions` to a shared composable `useDisplayPositions()` that both the store and display component import. The store no longer "owns" it.
-
-**Fix (Option B — proper):** Pass a position resolver callback into `spawnCoinDrop`:
-
-```ts
-function spawnCoinDrop(
-  origin: Pick<FishData, 'id' | 'x' | 'y'>,
-  ...
-) { ... }
-```
-
-The store already receives `origin` from the caller. In `tick()`, the caller resolves the live position before passing it:
-
-```ts
-const live = livePositions.get(entry.id);
-const origin = { id: entry.id, x: live?.x ?? entry.x, y: live?.y ?? entry.y };
-```
-
-This is already done at `game.ts:1472`. The issue is that `livePositions` lives on the store. Moving it to the composable is sufficient.
+`livePositions` moved to `composables/useDisplayPositions.ts` (module-level singleton). Both `game.ts` and `AquariumDisplay.vue` call `useDisplayPositions()` — the store no longer owns this map.
 
 ---
 

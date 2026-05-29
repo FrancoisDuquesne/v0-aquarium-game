@@ -2,6 +2,7 @@
 import { fishSizeMultiplier, fishAgeRatio } from "~/utils/economy";
 
 const game = useGameStore();
+const livePositions = useDisplayPositions();
 
 const container = ref<HTMLElement | null>(null);
 const size = ref({ w: 0, h: 0 });
@@ -170,7 +171,7 @@ function tick(ts: number) {
       faces.delete(id);
       fishEls.delete(id);
       fishTypes.delete(id);
-      game.livePositions.delete(id);
+      livePositions.delete(id);
     }
   }
 
@@ -357,7 +358,7 @@ function tick(ts: number) {
       Math.min(FISH_CONFIG.BOUNDARY_BOTTOM, pos.y)
     );
     velocities.set(id, vel);
-    game.livePositions.set(id, { x: pos.x, y: pos.y });
+    livePositions.set(id, { x: pos.x, y: pos.y });
 
     const node = fishEls.get(id);
     if (node) {
