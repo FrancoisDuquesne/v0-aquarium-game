@@ -499,12 +499,14 @@ function coinStyle(drop: CoinDropView) {
     anchor = { left, startTop, endTop, duration };
     dropAnchors.set(drop.id, anchor);
   }
+  const lifetimeMs = drop.expiresAt - drop.createdAt;
   return {
     left: `${anchor.left}%`,
     top: `${anchor.endTop}%`,
     "--drop-start-top": `${anchor.startTop}%`,
     "--drop-end-top": `${anchor.endTop}%`,
     "--drop-fall-duration": `${anchor.duration}ms`,
+    "--drop-lifetime": `${lifetimeMs}ms`,
   };
 }
 
@@ -762,10 +764,18 @@ function getFishSizeMultiplier(f: { type: string; bornAt?: number; genetics?: { 
   --drop-start-top: 90%;
   --drop-end-top: 94%;
   --drop-fall-duration: 1200ms;
-  animation-name: coin-fall;
-  animation-duration: var(--drop-fall-duration);
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  animation-fill-mode: forwards;
+  --drop-lifetime: 22000ms;
+  animation-name: coin-fall, coin-expire;
+  animation-duration: var(--drop-fall-duration), var(--drop-lifetime);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), linear;
+  animation-fill-mode: forwards, forwards;
+}
+
+@keyframes coin-expire {
+  0%,  65% { opacity: 1; }
+  80%       { opacity: 0.55; }
+  92%       { opacity: 0.2; }
+  100%      { opacity: 0.05; }
 }
 
 .coin-drop-enter-active {
