@@ -11,8 +11,6 @@ import {
   BOOST_DEFINITIONS,
   FISH_NAMES,
   PERSONALITY_POOL,
-  MISSION_POOL,
-  DAILY_MISSION_COUNT,
   INCUBATOR_COST,
   INCUBATION_DURATION_MS,
   BREEDING_COOLDOWN_MS,
@@ -29,6 +27,7 @@ import {
   type ListedFish,
 } from "~/utils/game-config";
 import { fishMarketValue, generateMarketPool, fishAgeRatio, fishLifespan, fishLifeStage } from "~/utils/economy";
+import type { DailyMission, DailyState } from "~/composables/useDailyMissions";
 
 type ToolType = "flake" | "spoon";
 
@@ -50,22 +49,6 @@ interface FishData {
   parentIds?: [number, number];
   sicklyWatchUntil?: number; // For sickly mutation mortality tracking
   bornAt?: number;           // Epoch ms when the fish was "born" / purchased
-}
-
-interface DailyMission {
-  id: string;
-  progress: number;
-  claimed: boolean;
-}
-
-interface DailyState {
-  date: string;
-  loginStreak: number;
-  bonusClaimed: boolean;
-  missions: DailyMission[];
-  feedCount: number;
-  coinsCollected: number;
-  dropsCollected: number;
 }
 
 interface VisitorState {
@@ -270,19 +253,6 @@ function normalizeFish(entry: Partial<FishData>): FishData {
       ? entry.bornAt
       : Date.now() - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END),
   };
-}
-
-function generateDailyMissions(): DailyMission[] {
-  const pool = [...MISSION_POOL];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, DAILY_MISSION_COUNT).map((def) => ({
-    id: def.id,
-    progress: 0,
-    claimed: false,
-  }));
 }
 
 function collectorStats(level: number) {
@@ -637,20 +607,13 @@ export const useGameStore = defineStore("game", () => {
     _saveTimer = setTimeout(_flushSave, 1000);
   }
 
+  const { updateMissionProgress, claimMission } = setupDailyMissions({ dailyState, coins, save });
+
   const { checkAchievements, shiftAchievementUnlock: _shiftAchievement } = setupAchievements({
     fish, upgrades, autoFeeder, purchasedExpansions, tankCapacity,
     totalCoinsCollected, maxCareStreakEver, totalFeedCount,
     unlockedAchievements, pendingAchievementUnlocks,
   });
-
-  function updateMissionProgress(type: string, value: number) {
-    dailyState.value.missions.forEach((m) => {
-      if (m.claimed) return;
-      const def = MISSION_POOL.find((d) => d.id === m.id);
-      if (!def || def.type !== type) return;
-      m.progress = Math.min(def.goal, value);
-    });
-  }
 
   function shiftAchievementUnlock(): string | null {
     return _shiftAchievement();
@@ -658,17 +621,6 @@ export const useGameStore = defineStore("game", () => {
 
   function clearDailyBonus() {
     pendingDailyBonus.value = 0;
-  }
-
-  function claimMission(id: string): number {
-    const missionState = dailyState.value.missions.find((m) => m.id === id);
-    if (!missionState || missionState.claimed) return 0;
-    const def = MISSION_POOL.find((d) => d.id === id);
-    if (!def || missionState.progress < def.goal) return 0;
-    missionState.claimed = true;
-    coins.value += def.reward;
-    save();
-    return def.reward;
   }
 
   function feedVisitor(): number {
