@@ -102,8 +102,8 @@ const tutorialStep = computed(() => {
 
 const tutorialMessage = computed(() => {
   const firstName = game.fish[0]?.name ?? "your fish";
-  if (tutorialStep.value === 0) return `🐟 ${firstName} is hungry! Tap the tank to drop food (0.5 coins/flake).`;
-  if (tutorialStep.value === 1) return `💰 ${firstName} earned a coin! Tap it to collect.`;
+  if (tutorialStep.value === 0) return `🐟 ${firstName} is hungry! Tap the tank (or tap a fish) to drop food.`;
+  if (tutorialStep.value === 1) return `💰 Tap the coin to collect it — or hit Collect All in the Tools panel.`;
   if (tutorialStep.value === 2) return "🛒 Open the Shop to buy more fish and upgrades!";
   return "";
 });

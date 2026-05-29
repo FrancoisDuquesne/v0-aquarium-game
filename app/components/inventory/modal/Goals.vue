@@ -125,7 +125,7 @@ function confirmPrestige() {
         </div>
       </div>
       <div v-else class="text-xs text-white/30 text-center py-4">
-        No missions today. Come back tomorrow!
+        Missions refresh daily — check back tomorrow!
       </div>
     </div>
 
