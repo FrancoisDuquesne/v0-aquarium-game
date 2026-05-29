@@ -48,6 +48,35 @@ function openSection(section: Section) {
   if (section === "shop") hasOpenedStore.value = true;
 }
 
+// ── Income rate ────────────────────────────────────────────────────────────
+const incomePerMin = computed(() =>
+  Math.round(game.fish.reduce((sum, f) => sum + coinsPerMinuteFor(f.type), 0))
+);
+
+// ── Hunger countdown ───────────────────────────────────────────────────────
+const secsToHungry = computed(() => {
+  if (!game.fish.length) return null;
+  const minHunger = Math.min(...game.fish.map((f) => f.hunger));
+  if (minHunger <= CARE_THRESHOLD) return 0;
+  const ticks = (minHunger - CARE_THRESHOLD) / game.hungerDecayPerTick;
+  return Math.round(ticks * 5);
+});
+
+// ── Next upgrade milestone ──────────────────────────────────────────────────
+const nextMilestone = computed(() => {
+  const candidates: { label: string; cost: number }[] = [];
+  if (!game.tools.spoonOwned) candidates.push({ label: "Scatter Feed", cost: SPOON_COST });
+  if (!game.autoFeeder.owned) candidates.push({ label: "Auto Feeder", cost: AUTO_FEEDER_COST });
+  const nextCollector = nextCollectorLevel(game.coinCollector.level);
+  if (nextCollector) candidates.push({ label: "Coin Collector", cost: nextCollector.cost });
+  if (!game.incubator.owned) candidates.push({ label: "Incubator", cost: INCUBATOR_COST });
+  if (!candidates.length) return null;
+  const cheapest = candidates.reduce((a, b) => a.cost <= b.cost ? a : b);
+  const gap = cheapest.cost - game.coins;
+  if (gap <= 0) return null; // can already afford it — no need for the nudge
+  return { label: cheapest.label, gap };
+});
+
 // ── Hungry fish badge ──────────────────────────────────────────────────────
 const hungryFishCount = computed(
   () => game.fish.filter((f) => f.hunger < CARE_THRESHOLD).length
@@ -239,17 +268,25 @@ watch(
       </UDropdownMenu>
     </div>
 
-    <div class="absolute top-0 left-0 p-2 flex z-20 flex-col gap-2">
+    <div class="absolute top-0 left-0 p-2 flex z-20 flex-col gap-1.5">
       <div
-        class="flex items-center gap-2 sm:gap-4 bg-default/80 rounded-2xl shadow-xl px-2 py-1 flex-nowrap overflow-x-auto max-w-[calc(100vw-3rem)]"
+        class="flex items-center gap-2 sm:gap-3 bg-default/80 rounded-2xl shadow-xl px-2 py-1 flex-nowrap overflow-x-auto max-w-[calc(100vw-3rem)]"
         style="scrollbar-width: none; -ms-overflow-style: none;">
         <span
           class="text-sm font-semibold"
           :class="game.coins < 0 ? 'text-red-400' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'text-yellow-400' : ''"
           >💰 {{ abbreviateCoins(game.coins) }}</span
         >
+        <span v-if="incomePerMin > 0" class="text-xs text-emerald-400/80 font-medium tabular-nums">+{{ incomePerMin }}/min</span>
         <span class="text-sm font-semibold">🐟 {{ game.fish.length }} / {{ game.tankCapacity }}</span>
         <span class="text-sm font-semibold">🍽️ {{ avg }}</span>
+        <!-- Hunger warning: show countdown when fish will go below care threshold -->
+        <span
+          v-if="secsToHungry !== null && secsToHungry <= 60"
+          class="text-xs font-semibold"
+          :class="secsToHungry === 0 ? 'text-red-400' : 'text-yellow-400'">
+          {{ secsToHungry === 0 ? '⚠️ hungry!' : `🕐 ${secsToHungry}s` }}
+        </span>
         <span v-if="game.coinMultiplier > 1" class="text-sm font-semibold text-success">
           ×{{ game.coinMultiplier.toFixed(2) }}
         </span>
@@ -264,6 +301,12 @@ watch(
             :label="`✨ ${badge.label}`"
             class="shadow" />
         </div>
+      </div>
+      <!-- Next milestone nudge -->
+      <div
+        v-if="nextMilestone"
+        class="text-[10px] font-medium text-white/40 px-2 leading-none">
+        ⭐ {{ nextMilestone.label }} — {{ abbreviateCoins(nextMilestone.gap) }} coins away
       </div>
     </div>
 
