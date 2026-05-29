@@ -610,7 +610,13 @@ function onClick(e: MouseEvent) {
 }
 
 function onPlayWithFish(fishId: number) {
-  game.playWithFish(fishId);
+  const pos = positions.get(fishId);
+  if (pos) {
+    // Drop food directly at the fish — most natural interaction
+    addFlakeAtPercent(pos.x, pos.y);
+  } else {
+    game.playWithFish(fishId);
+  }
 }
 
 function collectVisitor() {
