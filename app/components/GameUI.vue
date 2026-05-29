@@ -273,15 +273,15 @@ watch(
           :class="game.coins < 0 ? 'text-red-400' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'text-yellow-400' : ''"
           >💰 {{ abbreviateCoins(game.coins) }}</span
         >
-        <span v-if="incomePerMin > 0" class="text-xs text-emerald-400/80 font-medium tabular-nums">+{{ incomePerMin }}/min</span>
+        <span v-if="incomePerMin > 0" class="text-xs text-emerald-400/80 font-medium tabular-nums">+{{ incomePerMin }}🪙/m</span>
         <span class="text-sm font-semibold">🐟 {{ game.fish.length }} / {{ game.tankCapacity }}</span>
         <span class="text-sm font-semibold">🍽️ {{ avg }}</span>
-        <!-- Hunger warning: show countdown when fish will go below care threshold -->
+        <!-- Hunger warning: countdown shows when <90s; red when fish already at/below threshold -->
         <span
-          v-if="secsToHungry !== null && secsToHungry <= 60"
+          v-if="secsToHungry !== null && secsToHungry <= 90"
           class="text-xs font-semibold"
-          :class="secsToHungry === 0 ? 'text-red-400' : 'text-yellow-400'">
-          {{ secsToHungry === 0 ? '⚠️ hungry!' : `🕐 ${secsToHungry}s` }}
+          :class="secsToHungry === 0 ? 'text-red-400 animate-pulse' : secsToHungry <= 30 ? 'text-orange-400' : 'text-yellow-400'">
+          {{ secsToHungry === 0 ? '⚠️ feed now!' : `🕐 ${secsToHungry}s` }}
         </span>
         <span v-if="game.coinMultiplier > 1" class="text-sm font-semibold text-success">
           ×{{ game.coinMultiplier.toFixed(2) }}
