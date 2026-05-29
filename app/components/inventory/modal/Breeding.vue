@@ -8,6 +8,7 @@ import {
   MUTATION_DEFINITIONS,
   FISH_SHOP_ITEMS,
   type MutationType,
+  type MutationDef,
 } from "~/utils/game-config";
 import { useIntervalFn } from "@vueuse/core";
 
@@ -113,6 +114,7 @@ function handleStartBreeding() {
   const result = game.startBreeding(selectedParent1.value, selectedParent2.value);
   if (result.success) { selectedParent1.value = null; selectedParent2.value = null; }
 }
+const mutationList: MutationDef[] = Object.values(MUTATION_DEFINITIONS);
 function handleBuyIncubator() { game.buyIncubator(); }
 function handleCancelBreeding() { game.cancelBreeding(); }
 function handleCloseResult() { game.clearBreedingResult(); showResultModal.value = false; }
@@ -132,7 +134,16 @@ function getMutationInfo(mutation?: MutationType) {
         <span class="locked-egg-emoji">🥚</span>
       </div>
       <h3 class="locked-title">Incubator Required</h3>
-      <p class="locked-desc">Unlock the incubator to breed your fish and discover rare genetic mutations.</p>
+      <p class="locked-desc">Breed two fish of the same species to produce unique offspring with inherited stats and rare mutations.</p>
+      <!-- Teaser: mutation types -->
+      <div class="flex flex-wrap justify-center gap-1.5 mt-2 mb-1 px-4">
+        <span v-for="mut in mutationList" :key="mut.label"
+          class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          :style="mut.isNegative ? 'background:rgba(239,68,68,0.12);color:#fca5a5' : 'background:rgba(34,197,94,0.12);color:#86efac'">
+          {{ mut.icon }} {{ mut.label }}
+        </span>
+      </div>
+      <p class="text-[10px] text-white/30 mb-3">12% chance of a mutation per hatch</p>
       <button
         class="unlock-btn"
         :class="{ 'unlock-btn--disabled': game.coins < INCUBATOR_COST }"
