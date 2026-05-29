@@ -13,6 +13,23 @@ const todayMissions = computed(() =>
 const achievementCount = computed(() => game.unlockedAchievements.length);
 const totalAchievements = ACHIEVEMENT_DEFINITIONS.length;
 
+const ownedSpeciesCount = computed(() => new Set(game.fish.map(f => f.type)).size);
+const ownedUpgradeCount = computed(() => Object.values(game.upgrades as Record<string, boolean>).filter(Boolean).length);
+
+function achievementProgress(ach: typeof ACHIEVEMENT_DEFINITIONS[number]): string | null {
+  if (game.unlockedAchievements.includes(ach.id) || !ach.threshold) return null;
+  const th = ach.threshold;
+  switch (ach.condition) {
+    case 'fish-count':    return `${game.fish.length} / ${th}`;
+    case 'total-coins':   return `${abbreviateCoins(game.totalCoinsCollected)} / ${abbreviateCoins(th)}`;
+    case 'species-count': return `${ownedSpeciesCount.value} / ${th}`;
+    case 'feed-count':    return `${game.totalFeedCount} / ${th}`;
+    case 'care-streak':   return `${game.maxCareStreakEver} / ${th}`;
+    case 'upgrade-count': return `${ownedUpgradeCount.value} / ${th}`;
+  }
+  return null;
+}
+
 const loginStreak = computed(() => game.dailyState.loginStreak);
 const nextDayBonus = computed(() =>
   Math.min(100, LOGIN_BONUS_BASE + Math.floor(loginStreak.value / 3) * 10)
@@ -116,7 +133,7 @@ function confirmPrestige() {
             </span>
           </div>
           <!-- Progress bar -->
-          <div class="h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
+          <div class="h-2.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.12);">
             <div
               class="h-full rounded-full transition-all duration-500"
               :class="m.claimed ? 'bg-emerald-400' : m.progress >= m.goal ? 'bg-yellow-400' : 'bg-cyan-500'"
@@ -149,9 +166,12 @@ function confirmPrestige() {
             ? 'background: rgba(234,179,8,0.08)'
             : 'background: rgba(255,255,255,0.03)'">
           <span class="text-2xl leading-none shrink-0">{{ ach.icon }}</span>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <p class="text-xs font-semibold text-white truncate">{{ ach.name }}</p>
             <p class="text-xs text-white/40 leading-snug">{{ ach.desc }}</p>
+            <p v-if="achievementProgress(ach)" class="text-[10px] text-white/30 mt-0.5 tabular-nums">
+              {{ achievementProgress(ach) }}
+            </p>
           </div>
           <span
             v-if="game.unlockedAchievements.includes(ach.id)"
