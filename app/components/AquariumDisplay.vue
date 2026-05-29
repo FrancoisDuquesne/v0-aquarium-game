@@ -205,6 +205,16 @@ function tick(ts: number) {
     flakeIds.value = flakeIds.value.filter((i) => !flakesToRemove.includes(i));
   }
 
+  // Pre-compute per-species positions once so schooling/territorial loops are O(n) not O(n²)
+  const speciesPositions = new Map<string, { id: number; x: number; y: number }[]>();
+  game.fish.forEach((f) => {
+    const p = positions.get(f.id);
+    if (!p) return;
+    const arr = speciesPositions.get(f.type);
+    if (arr) arr.push({ id: f.id, x: p.x, y: p.y });
+    else speciesPositions.set(f.type, [{ id: f.id, x: p.x, y: p.y }]);
+  });
+
   positions.forEach((pos, id) => {
     let chasingSinkingFlake = false;
     const species = fishTypes.get(id) ?? "goldfish";
@@ -222,10 +232,8 @@ function tick(ts: number) {
       // Schooling — neons, guppies, cherry-barbs, tiger-barbs drift toward nearby same-species
       if (profile.schooling) {
         let sx = 0, sy = 0, count = 0;
-        game.fish.forEach((f) => {
-          if (f.id === id || f.type !== species) return;
-          const fp = positions.get(f.id);
-          if (!fp) return;
+        speciesPositions.get(species)?.forEach((fp) => {
+          if (fp.id === id) return;
           const d = Math.hypot(fp.x - pos.x, fp.y - pos.y);
           if (d < 28) { sx += fp.x; sy += fp.y; count++; }
         });
@@ -237,10 +245,8 @@ function tick(ts: number) {
 
       // Territorial — bettas and jewel-cichlids steer away from same-species
       if (profile.territorial) {
-        game.fish.forEach((f) => {
-          if (f.id === id || f.type !== species) return;
-          const fp = positions.get(f.id);
-          if (!fp) return;
+        speciesPositions.get(species)?.forEach((fp) => {
+          if (fp.id === id) return;
           const d = Math.hypot(fp.x - pos.x, fp.y - pos.y);
           if (d < 22) {
             const awayX = pos.x + (pos.x - fp.x) * 0.6;

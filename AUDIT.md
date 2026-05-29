@@ -85,26 +85,9 @@ For each fish, the code iterates every flake to find the nearest one within `DET
 
 **Fix:** Spatial bucketing. Divide the 100×100 coordinate space into a coarse grid (e.g. 8 cells × 8 cells = 12.5% wide each). When a flake is added/moved, place it in a bucket. For each fish, only query its bucket and adjacent buckets. Reduces comparisons from n×m to ~n×(m/8) in the average case.
 
-### 4-B · Schooling/territorial behavior is O(n²) per waypoint
+### ~~4-B · Schooling/territorial O(n²) per waypoint~~ ✅ DONE
 
-**File:** `app/components/AquariumDisplay.vue:225–250`
-
-When computing a new waypoint for schooling/territorial fish, the code calls `game.fish.forEach()` inside the outer `positions.forEach()`.
-
-**Fix:** Pre-compute a per-species position map once per tick, outside the fish loop:
-
-```ts
-const speciesPositions = new Map<string, {x: number, y: number}[]>();
-game.fish.forEach(f => {
-  const pos = positions.get(f.id);
-  if (!pos) return;
-  const arr = speciesPositions.get(f.type) ?? [];
-  arr.push(pos);
-  speciesPositions.set(f.type, arr);
-});
-```
-
-Then schooling/territorial logic queries `speciesPositions.get(species)` instead of rescanning all fish.
+Pre-computed `speciesPositions` map built once per frame; schooling/territorial loops now query it.
 
 ---
 
