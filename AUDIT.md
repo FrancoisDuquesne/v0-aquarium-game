@@ -27,17 +27,7 @@ These are isolated, low-risk, high-value changes with no architectural impact.
 
 ---
 
-### 1-B · Remove unnecessary `deep: true` watch
-
-**File:** `app/components/GameUI.vue:86`
-
-```ts
-watch(() => game.pendingDeaths, (deaths) => { ... }, { deep: true })
-```
-
-`pendingDeaths` is `{ id, name, type }[]`. Deep watching re-diffs every object on every array change. A length or reference change triggers the handler just as reliably.
-
-**Fix:** Remove `{ deep: true }`.
+### ~~1-B · Remove unnecessary `deep: true` watch~~ ✅ DONE
 
 ---
 

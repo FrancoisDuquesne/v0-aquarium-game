@@ -97,7 +97,6 @@ watch(
     });
     game.clearPendingDeaths();
   },
-  { deep: true }
 );
 
 // ── Storage warning ────────────────────────────────────────────────────────
