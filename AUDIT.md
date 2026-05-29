@@ -43,35 +43,9 @@ Removed from all scattered call sites; single call added at end of `tick()`.
 
 ---
 
-### 1-E · Remove `deep: true` isn't enough — also fix audio GainNode leak
+### ~~1-E · Audio GainNode leak~~ ✅ DONE
 
-**File:** `app/composables/useGameAudio.ts:19–23`
-
-```ts
-function masterGain(ac: AudioContext): GainNode {
-  const g = ac.createGain();      // new node every call
-  g.connect(ac.destination);
-  return g;
-}
-```
-
-`masterGain()` is called inside `playFeedSound`, `playCoinSound`, `playStreakSound` — each invocation creates a new `GainNode` that is never disconnected. Oscillators are scheduled to stop but the gain node connection persists. Rapid feeding leaks AudioContext nodes.
-
-**Fix:** Create one master gain node at module level, reuse it:
-
-```ts
-let masterGainNode: GainNode | null = null;
-function getMasterGain(ac: AudioContext): GainNode {
-  if (!masterGainNode) {
-    masterGainNode = ac.createGain();
-    masterGainNode.gain.value = muted ? 0 : 1;
-    masterGainNode.connect(ac.destination);
-  }
-  return masterGainNode;
-}
-```
-
-Update `toggleMute` to set `masterGainNode.gain.value` directly.
+Singleton `getMasterGain()` replaces per-call `masterGain()`; `toggleMute` updates gain directly.
 
 ---
 

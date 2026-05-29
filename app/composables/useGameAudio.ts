@@ -7,6 +7,7 @@ type CoinTier =
 
 let ctx: AudioContext | null = null;
 let ambientGain: GainNode | null = null;
+let masterGainNode: GainNode | null = null;
 let ambientStarted = false;
 let muted = false;
 
@@ -16,11 +17,13 @@ function getCtx(): AudioContext {
   return ctx;
 }
 
-function masterGain(ac: AudioContext): GainNode {
-  const g = ac.createGain();
-  g.gain.value = muted ? 0 : 1;
-  g.connect(ac.destination);
-  return g;
+function getMasterGain(ac: AudioContext): GainNode {
+  if (!masterGainNode) {
+    masterGainNode = ac.createGain();
+    masterGainNode.gain.value = muted ? 0 : 1;
+    masterGainNode.connect(ac.destination);
+  }
+  return masterGainNode;
 }
 
 // ── Ambient underwater hum ───────────────────────────────────────────────────
@@ -48,7 +51,7 @@ function startAmbient() {
   ambientGain = ac.createGain();
   ambientGain.gain.value = 0;
 
-  const master = masterGain(ac);
+  const master = getMasterGain(ac);
   noise.connect(lpf);
   lpf.connect(ambientGain);
   ambientGain.connect(master);
@@ -67,7 +70,7 @@ export function playFeedSound() {
     startAmbient();
     const osc = ac.createOscillator();
     const env = ac.createGain();
-    const master = masterGain(ac);
+    const master = getMasterGain(ac);
 
     osc.type = "sine";
     osc.frequency.setValueAtTime(320, ac.currentTime);
@@ -104,7 +107,7 @@ export function playCoinSound(tier: CoinTier = "copper") {
     const ac = getCtx();
     startAmbient();
     const notes = TIER_NOTES[tier] ?? TIER_NOTES.copper;
-    const master = masterGain(ac);
+    const master = getMasterGain(ac);
     const gainVal = Math.min(0.22, 0.1 + notes.length * 0.025);
 
     notes.forEach((freq, i) => {
@@ -130,7 +133,7 @@ export function playStreakSound(streak: number) {
   try {
     const ac = getCtx();
     startAmbient();
-    const master = masterGain(ac);
+    const master = getMasterGain(ac);
     const baseFreq = 523 + streak * 130;
 
     for (let i = 0; i < 2; i++) {
@@ -154,6 +157,7 @@ export function playStreakSound(streak: number) {
 export function useGameAudio() {
   function toggleMute() {
     muted = !muted;
+    if (masterGainNode) masterGainNode.gain.value = muted ? 0 : 1;
     if (ambientGain) ambientGain.gain.value = muted ? 0 : 0.03;
   }
 
