@@ -679,3 +679,24 @@ export const DEFAULT_INCUBATOR: IncubatorState = {
 // Baby name generation syllables
 export const BABY_NAME_PREFIXES = ["Bub", "Fin", "Rip", "Gill", "Mar", "Aqu", "Cor", "Nep", "Wav", "Dew", "Mist", "Glo", "Shim"];
 export const BABY_NAME_SUFFIXES = ["ble", "ny", "ette", "ito", "let", "ling", "ie", "sy", "kins", "os", "ix", "ara", "umi"];
+
+// ── Fish Market ──────────────────────────────────────────────────────────────
+export const MARKET_REFRESH_MS   = 4 * 60 * 60 * 1000; // 4 hours
+export const LISTING_DURATION_MS = 20 * 60 * 1000;      // 20 minutes
+export const MARKET_POOL_BASE    = 4;                    // minimum pool size
+
+export interface MarketFish {
+  uid: string;         // seed-stable id, not a real FishData id
+  type: string;
+  name: string;
+  generation: number;
+  genetics: GeneticsData;
+  price: number;       // pre-computed at generation time
+}
+
+export interface ListedFish {
+  fishId: number;
+  price: number;
+  listedAt: number;
+  sellsByMs: number;   // listedAt + LISTING_DURATION_MS
+}

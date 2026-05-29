@@ -25,10 +25,15 @@ import {
   MUTATION_DEFINITIONS,
   BABY_NAME_PREFIXES,
   BABY_NAME_SUFFIXES,
+  MARKET_REFRESH_MS,
+  LISTING_DURATION_MS,
   type GeneticsData,
   type IncubatorState,
   type MutationType,
+  type MarketFish,
+  type ListedFish,
 } from "~/utils/game-config";
+import { fishMarketValue, generateMarketPool } from "~/utils/economy";
 
 type ToolType = "flake" | "spoon";
 
@@ -345,6 +350,10 @@ export const useGameStore = defineStore("game", () => {
   const incubator = reactive<IncubatorState>({ ...DEFAULT_INCUBATOR });
   const pendingBreedingResult = ref<{ success: boolean; baby?: FishData; deathReason?: string } | null>(null);
 
+  // Fish Market state
+  const market = reactive<{ pool: MarketFish[]; lastRefresh: number }>({ pool: [], lastRefresh: 0 });
+  const listedFish = ref<ListedFish[]>([]);
+
   const backgroundEffect = computed(() => BACKGROUND_EFFECTS[background.value] ?? null);
 
   const hungerDecayPerTick = computed(() => {
@@ -527,6 +536,25 @@ export const useGameStore = defineStore("game", () => {
         incubator.queuedBaby = savedIncubator.queuedBaby ?? null;
       }
 
+      // ── Fish Market ───────────────────────────────────────────────────────────
+      const savedMarket = (parsed as Record<string, unknown>).market as { pool?: MarketFish[]; lastRefresh?: number } | undefined;
+      if (savedMarket) {
+        market.pool = Array.isArray(savedMarket.pool) ? savedMarket.pool : [];
+        market.lastRefresh = typeof savedMarket.lastRefresh === "number" ? savedMarket.lastRefresh : 0;
+      }
+      const savedListings = (parsed as Record<string, unknown>).listedFish as ListedFish[] | undefined;
+      if (Array.isArray(savedListings)) {
+        const loadNow = Date.now();
+        // Resolve any listings that expired while offline
+        const expired = savedListings.filter(l => loadNow >= l.sellsByMs);
+        if (expired.length) {
+          coins.value += expired.reduce((sum, l) => sum + l.price, 0);
+          const expiredIds = new Set(expired.map(l => l.fishId));
+          fish.value = fish.value.filter(f => !expiredIds.has(f.id));
+        }
+        listedFish.value = savedListings.filter(l => loadNow < l.sellsByMs);
+      }
+
       // Retroactively unlock state-based achievements on first load
       checkAchievements();
     } catch (error) {
@@ -576,6 +604,8 @@ export const useGameStore = defineStore("game", () => {
         lastBreedTime: incubator.lastBreedTime,
         queuedBaby: incubator.queuedBaby ? { ...incubator.queuedBaby } : null,
       },
+      market: { pool: market.pool.map(m => ({ ...m })), lastRefresh: market.lastRefresh },
+      listedFish: listedFish.value.map(l => ({ ...l })),
     } as GameState & { netIncomeHistory: number[] };
     try {
       localStorage.setItem("aquarium-game", JSON.stringify(payload));
@@ -1013,6 +1043,84 @@ export const useGameStore = defineStore("game", () => {
   function removeFish(id: number) {
     fish.value = fish.value.filter((entry) => entry.id !== id);
     save();
+  }
+
+  // ── Fish Market ─────────────────────────────────────────────────────────────
+
+  function refreshMarketIfStale() {
+    const now = Date.now();
+    if (now - market.lastRefresh >= MARKET_REFRESH_MS) {
+      const seed = Math.floor(now / MARKET_REFRESH_MS);
+      const tankLevel = purchasedExpansions.value.length + 1;
+      market.pool = generateMarketPool(tankLevel, seed);
+      market.lastRefresh = now;
+    }
+  }
+
+  function getMarketPool(): MarketFish[] {
+    refreshMarketIfStale();
+    return market.pool;
+  }
+
+  function buyMarketFish(uid: string) {
+    refreshMarketIfStale();
+    const entry = market.pool.find(m => m.uid === uid);
+    if (!entry) return;
+    if (coins.value < entry.price) return;
+    if (fish.value.length >= tankCapacity.value) return;
+    coins.value -= entry.price;
+    fish.value.push(
+      normalizeFish({
+        id: Date.now(),
+        type: entry.type,
+        name: entry.name,
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 60 + 20,
+        hunger: 80,
+        speed: Math.random() * 2 + 1,
+        generation: entry.generation,
+        genetics: { ...entry.genetics },
+      })
+    );
+    market.pool = market.pool.filter(m => m.uid !== uid);
+    checkAchievements();
+    save();
+  }
+
+  function listFishForSale(fishId: number) {
+    if (listedFish.value.some(l => l.fishId === fishId)) return;
+    const f = fish.value.find(f => f.id === fishId);
+    if (!f) return;
+    const price = fishMarketValue(f);
+    const now = Date.now();
+    listedFish.value = [
+      ...listedFish.value,
+      { fishId, price, listedAt: now, sellsByMs: now + LISTING_DURATION_MS },
+    ];
+    save();
+  }
+
+  function cancelListing(fishId: number) {
+    listedFish.value = listedFish.value.filter(l => l.fishId !== fishId);
+    save();
+  }
+
+  function checkListings() {
+    const now = Date.now();
+    const expired = listedFish.value.filter(l => now >= l.sellsByMs);
+    if (!expired.length) return;
+    const expiredIds = new Set(expired.map(l => l.fishId));
+    coins.value += expired.reduce((sum, l) => sum + l.price, 0);
+    fish.value = fish.value.filter(f => !expiredIds.has(f.id));
+    listedFish.value = listedFish.value.filter(l => !expiredIds.has(l.fishId));
+  }
+
+  function isListed(fishId: number): boolean {
+    return listedFish.value.some(l => l.fishId === fishId);
+  }
+
+  function getListingFor(fishId: number): ListedFish | undefined {
+    return listedFish.value.find(l => l.fishId === fishId);
   }
 
   function buyFish(type: string, cost: number) {
@@ -1454,6 +1562,9 @@ export const useGameStore = defineStore("game", () => {
       pendingVisitorArrival.value = true;
     }
 
+    // ── Market listing resolution ────────────────────────────────────────────
+    checkListings();
+
     // ── Breeding / Incubation logic ─────────────────────────────────────────
     if (incubator.breeding) {
       const result = checkIncubation();
@@ -1591,5 +1702,15 @@ export const useGameStore = defineStore("game", () => {
     canBreed,
     getEligibleBreedingPartners,
     clearBreedingResult,
+    // Fish Market
+    market,
+    listedFish,
+    getMarketPool,
+    buyMarketFish,
+    listFishForSale,
+    cancelListing,
+    isListed,
+    getListingFor,
+    fishMarketValue,
   };
 });

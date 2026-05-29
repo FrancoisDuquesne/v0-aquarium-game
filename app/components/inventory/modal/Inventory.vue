@@ -1,7 +1,20 @@
 <script setup lang="ts">
+import { useIntervalFn } from "@vueuse/core";
+
 const emit = defineEmits<{ (e: "go-to-shop"): void }>();
 
 const game = useGameStore();
+
+// Live clock for listing countdown
+const now = ref(Date.now());
+useIntervalFn(() => { now.value = Date.now(); }, 1000);
+
+function listingTimeLeft(sellsByMs: number): string {
+  const secs = Math.max(0, Math.ceil((sellsByMs - now.value) / 1000));
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 const selectedSpecies = ref<"all" | string>("all");
 const statusFilter = ref<"all" | "healthy" | "hungry" | "bored">("all");
@@ -140,10 +153,12 @@ const sortOptions = [
           v-for="f in sorted"
           :key="f.id"
           class="relative rounded-xl p-3 flex flex-col gap-2"
+          :class="game.isListed(f.id) ? 'fish-card--listed' : ''"
           style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
 
-          <!-- Delete button (top-right) -->
+          <!-- Delete button (top-right, hidden while listed) -->
           <UButton
+            v-if="!game.isListed(f.id)"
             icon="i-mdi-delete"
             variant="ghost"
             color="error"
@@ -151,6 +166,9 @@ const sortOptions = [
             class="absolute top-2 right-2"
             aria-label="Remove fish"
             @click="game.removeFish(f.id)" />
+
+          <!-- Listed badge (top-right when listed) -->
+          <div v-else class="absolute top-2 right-2 listed-badge">🏷</div>
 
           <!-- Fish identity -->
           <div class="flex items-center gap-2 pr-5">
@@ -203,14 +221,35 @@ const sortOptions = [
             </div>
           </div>
 
-          <!-- Feed button -->
-          <UButton
-            color="success"
-            variant="soft"
-            size="sm"
-            label="Feed"
-            block
-            @click="game.feedFish(f.id, FEED_AMOUNT)" />
+          <!-- Listed state: countdown + cancel -->
+          <template v-if="game.isListed(f.id)">
+            <div class="listing-row">
+              <div class="listing-info">
+                <span class="listing-price">{{ game.getListingFor(f.id)?.price.toLocaleString() }} 🪙</span>
+                <span class="listing-countdown">{{ listingTimeLeft(game.getListingFor(f.id)!.sellsByMs) }}</span>
+              </div>
+              <button class="listing-cancel" @click="game.cancelListing(f.id)">✕ Cancel</button>
+            </div>
+          </template>
+
+          <!-- Normal state: feed + list buttons -->
+          <template v-else>
+            <div class="flex gap-1.5">
+              <UButton
+                color="success"
+                variant="soft"
+                size="sm"
+                label="Feed"
+                class="flex-1"
+                @click="game.feedFish(f.id, FEED_AMOUNT)" />
+              <button
+                class="list-btn"
+                :title="`List for ${game.fishMarketValue(f).toLocaleString()} coins`"
+                @click="game.listFishForSale(f.id)">
+                🏷
+              </button>
+            </div>
+          </template>
         </div>
 
         <!-- Buy more fish card -->
@@ -231,3 +270,73 @@ const sortOptions = [
     </div>
   </div>
 </template>
+
+<style scoped>
+.fish-card--listed {
+  border-color: rgba(245,158,11,0.35) !important;
+  background: rgba(245,158,11,0.05) !important;
+}
+
+.listed-badge {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.list-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.list-btn:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.35); }
+
+.listing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.listing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.listing-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+.listing-countdown {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+  color: rgba(245,158,11,0.6);
+}
+.listing-cancel {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.listing-cancel:hover { color: rgba(255,255,255,0.65); }
+</style>
