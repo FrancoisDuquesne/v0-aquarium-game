@@ -37,10 +37,10 @@ const hungryFish  = computed(() => game.fish.filter((f) => f.hunger < CARE_THRES
 const unhappyFish = computed(() => game.fish.filter((f) => f.boredom > BOREDOM_HIGH_THRESHOLD).length);
 
 const statusFilters = computed(() => [
-  { id: "all",     label: `All · ${game.fish.length}` },
-  { id: "healthy", label: `❤️ ${healthyFish.value}`   },
-  { id: "hungry",  label: `🍽️ ${hungryFish.value}`   },
-  { id: "bored",   label: `😟 ${unhappyFish.value}`  },
+  { id: "all",     label: `All · ${game.fish.length}`,        title: "All fish"            },
+  { id: "healthy", label: `😊 ${healthyFish.value}`,          title: "Well-fed (happy)"    },
+  { id: "hungry",  label: `🍽️ ${hungryFish.value}`,          title: "Hungry (needs food)" },
+  { id: "bored",   label: `😟 ${unhappyFish.value}`,          title: "Bored"               },
 ]);
 
 const filtered = computed(() =>
@@ -138,6 +138,7 @@ function ageBarColor(ageRatio: number): string {
             :color="statusFilter === f.id ? 'primary' : 'neutral'"
             :variant="statusFilter === f.id ? 'soft' : 'ghost'"
             class="rounded-full"
+            :title="f.title"
             @click="statusFilter = (f.id as typeof statusFilter.value)">
             {{ f.label }}
           </UButton>
