@@ -77,13 +77,9 @@ Added `netIncomeHistory`, `market`, `listedFish` to interface; removed all `Reco
 
 The animation loop in `AquariumDisplay.vue` runs at 60fps and contains O(n×m) work.
 
-### 4-A · Fish × Flake detection is O(n×m) per frame
+### ~~4-A · Fish × Flake detection O(n×m) per frame~~ ✅ DONE
 
-**File:** `app/components/AquariumDisplay.vue:268–290`
-
-For each fish, the code iterates every flake to find the nearest one within `DETECT_RADIUS`. With 20 fish and 60 flakes this is 1200 distance calculations per frame.
-
-**Fix:** Spatial bucketing. Divide the 100×100 coordinate space into a coarse grid (e.g. 8 cells × 8 cells = 12.5% wide each). When a flake is added/moved, place it in a bucket. For each fish, only query its bucket and adjacent buckets. Reduces comparisons from n×m to ~n×(m/8) in the average case.
+8×8 spatial grid built per frame; each fish checks 3×3 neighbourhood only.
 
 ### ~~4-B · Schooling/territorial O(n²) per waypoint~~ ✅ DONE
 

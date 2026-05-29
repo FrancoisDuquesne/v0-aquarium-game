@@ -205,6 +205,18 @@ function tick(ts: number) {
     flakeIds.value = flakeIds.value.filter((i) => !flakesToRemove.includes(i));
   }
 
+  // Spatial grid for flake detection — bucket size matches DETECT_RADIUS so checking
+  // 3×3 neighbourhood guarantees we see all flakes within detection range (O(n+m) not O(n×m))
+  const BUCKET_SIZE = 12.5; // 8 columns × 8 rows over the 100×100 % space
+  const flakeBuckets = new Map<string, Flake[]>();
+  flakes.forEach((fl) => {
+    const col = Math.floor(fl.x / BUCKET_SIZE);
+    const row = Math.floor(fl.y / BUCKET_SIZE);
+    const key = `${col}_${row}`;
+    const bucket = flakeBuckets.get(key);
+    if (bucket) bucket.push(fl); else flakeBuckets.set(key, [fl]);
+  });
+
   // Pre-compute per-species positions once so schooling/territorial loops are O(n) not O(n²)
   const speciesPositions = new Map<string, { id: number; x: number; y: number }[]>();
   game.fish.forEach((f) => {
@@ -272,16 +284,21 @@ function tick(ts: number) {
     const isHungry = hunger < 100;
 
     if (isHungry && flakes.size) {
-      flakes.forEach((fl) => {
-        const dx = fl.x - pos.x;
-        const dy = fl.y - pos.y;
-        if (Math.abs(dx) > nearestDist || Math.abs(dy) > nearestDist) return;
-        const d = Math.hypot(dx, dy);
-        if (d < nearestDist) {
-          nearest = fl;
-          nearestDist = d;
+      const fc = Math.floor(pos.x / BUCKET_SIZE);
+      const fr = Math.floor(pos.y / BUCKET_SIZE);
+      for (let dc = -1; dc <= 1; dc++) {
+        for (let dr = -1; dr <= 1; dr++) {
+          const bucket = flakeBuckets.get(`${fc + dc}_${fr + dr}`);
+          if (!bucket) continue;
+          for (const fl of bucket) {
+            const dx = fl.x - pos.x;
+            const dy = fl.y - pos.y;
+            if (Math.abs(dx) > nearestDist || Math.abs(dy) > nearestDist) continue;
+            const d = Math.hypot(dx, dy);
+            if (d < nearestDist) { nearest = fl; nearestDist = d; }
+          }
         }
-      });
+      }
     }
 
     if (nearest && nearestDist <= DETECT_RADIUS) {
