@@ -136,6 +136,7 @@ interface ActiveBoost {
 }
 
 interface GameState {
+  saveVersion: number;
   coins: number;
   fish: FishData[];
   lastSaveTime: number;
@@ -169,13 +170,15 @@ const dropTimers = new Set<number>();
 let _nextId = 1;
 function nextId() { return _nextId++; }
 
-function normalizeBackgroundPath(path: unknown): string {
+const CURRENT_SAVE_VERSION = 2;
+
+function normalizeBackgroundPath(path: unknown, migrate = false): string {
   if (typeof path !== "string" || !path.length) return DEFAULT_BACKGROUND;
   let normalized = path;
   if (!normalized.startsWith("/")) {
     normalized = `/${normalized.replace(/^\/?/, "")}`;
   }
-  if (normalized.startsWith("/images/background-")) {
+  if (migrate && normalized.startsWith("/images/background-")) {
     normalized = normalized.replace("/images/background-", "/backgrounds/");
     if (normalized.endsWith(".png")) {
       normalized = normalized.replace(/\.png$/i, ".webp");
@@ -428,7 +431,8 @@ export const useGameStore = defineStore("game", () => {
           : "flake";
       const resolvedHasEverFed = Boolean(parsed.hasEverFed);
       const resolvedHasEverCollected = Boolean(parsed.hasEverCollected);
-      const resolvedBackground = normalizeBackgroundPath(parsed.background);
+      const needsMigration = (parsed.saveVersion ?? 1) < CURRENT_SAVE_VERSION;
+      const resolvedBackground = normalizeBackgroundPath(parsed.background, needsMigration);
       const resolvedCollector = resolveCoinCollector(parsed.coinCollector);
       const resolvedUpgrades = resolveUpgrades(parsed.upgrades);
       const resolvedBoosts = resolveActiveBoosts(parsed.activeBoosts);
@@ -587,6 +591,7 @@ export const useGameStore = defineStore("game", () => {
     const timestamp = Date.now();
     lastSaveTime.value = timestamp;
     const payload: GameState = {
+      saveVersion: CURRENT_SAVE_VERSION,
       coins: coins.value,
       fish: fish.value.map((entry) => ({ ...entry })),
       lastSaveTime: timestamp,

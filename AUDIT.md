@@ -162,13 +162,9 @@ This is already done at `game.ts:1472`. The issue is that `livePositions` lives 
 
 ---
 
-## Work Package 7 — Legacy Migration Code Cleanup (low effort, deferred)
+## ~~Work Package 7 — Legacy Migration Code Cleanup~~ ✅ DONE
 
-`normalizeBackgroundPath()` runs on every `setBackground()` call and during `load()`. It handles the `/images/background-*.png` → `/backgrounds/*.webp` migration.
-
-Once saves have been normalized (all users who still have the old format have loaded and re-saved), this code is dead weight in the hot path.
-
-**Fix:** Add a `saveVersion` field to `GameState`. On load, if `saveVersion < 2`, run the migration once and bump the version. Remove the conversion checks from the normal `normalizeBackgroundPath` code path.
+`saveVersion` field added to `GameState` (current = 2). Migration path in `normalizeBackgroundPath` is only activated when `saveVersion < 2` during `load()`; `setBackground()` no longer runs migration code.
 
 ---
 
