@@ -68,9 +68,9 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         <div class="h-full rounded-full transition-[width] duration-700" :class="hungerBarClass" :style="{ width: hunger + '%' }" />
       </div>
 
-      <!-- Hover-only full stat panel -->
+      <!-- Hover / active (touch) full stat panel -->
       <div
-        class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex flex-col gap-[3px] pointer-events-none px-1.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+        class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex flex-col gap-[3px] pointer-events-none px-1.5 py-1 rounded-md opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-150"
         :style="{ width: (barWidth + 10) + 'px', background: 'rgba(0,0,0,0.55)' }">
         <div class="flex items-center gap-1">
           <span class="text-[8px] leading-none w-3 text-center shrink-0">❤️</span>

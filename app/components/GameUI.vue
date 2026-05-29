@@ -235,7 +235,8 @@ watch(
 
     <div class="absolute top-0 left-0 p-2 flex z-20 flex-col gap-2">
       <div
-        class="flex items-center gap-2 sm:gap-4 bg-default/80 rounded-2xl shadow-xl w-fit px-2 py-1 flex-wrap">
+        class="flex items-center gap-2 sm:gap-4 bg-default/80 rounded-2xl shadow-xl px-2 py-1 flex-nowrap overflow-x-auto max-w-[calc(100vw-3rem)]"
+        style="scrollbar-width: none; -ms-overflow-style: none;">
         <span
           class="text-sm font-semibold"
           :class="game.coins < 0 ? 'text-red-400' : game.coins < MAINTENANCE_WARNING_THRESHOLD ? 'text-yellow-400' : ''"
@@ -278,7 +279,7 @@ watch(
         style="background: rgba(2,6,23,0.88); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px);">
         <!-- Fish -->
         <div class="relative">
-          <UButton variant="ghost" color="neutral" @click="openSection('fish')" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2">
+          <UButton variant="ghost" color="neutral" @click="openSection('fish')" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2.5 min-h-[44px]">
             <span class="text-base leading-none">🐟</span>
             <span class="text-xs font-semibold uppercase tracking-wide leading-none">Fish</span>
           </UButton>
@@ -293,19 +294,19 @@ watch(
           variant="ghost"
           color="neutral"
           :class="tutorialStep === 2 ? 'ring-2 ring-yellow-400/60 animate-pulse text-yellow-300/80' : ''"
-          class="flex flex-col items-center h-auto gap-0.5 px-4 py-2"
+          class="flex flex-col items-center h-auto gap-0.5 px-4 py-2.5 min-h-[44px]"
           @click="openSection('shop')">
           <span class="text-base leading-none">🛒</span>
           <span class="text-xs font-semibold uppercase tracking-wide leading-none">Shop</span>
         </UButton>
         <!-- Tank -->
-        <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2" @click="openSection('tank')">
+        <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2.5 min-h-[44px]" @click="openSection('tank')">
           <span class="text-base leading-none">🌊</span>
           <span class="text-xs font-semibold uppercase tracking-wide leading-none">Tank</span>
         </UButton>
         <!-- Goals -->
         <div class="relative">
-          <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2" @click="openSection('goals')">
+          <UButton variant="ghost" color="neutral" class="flex flex-col items-center h-auto gap-0.5 px-4 py-2.5 min-h-[44px]" @click="openSection('goals')">
             <span class="text-base leading-none">🏆</span>
             <span class="text-xs font-semibold uppercase tracking-wide leading-none">Goals</span>
           </UButton>

@@ -855,9 +855,10 @@ function getMutationInfo(mutation?: MutationType) {
 }
 .fish-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
 }
+@media (min-width: 360px) { .fish-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 400px) { .fish-grid { grid-template-columns: repeat(4, 1fr); } }
 
 /* Fish cards */

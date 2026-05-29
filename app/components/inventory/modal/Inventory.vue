@@ -186,7 +186,7 @@ function ageBarColor(ageRatio: number): string {
     <div class="flex-1 overflow-y-auto p-4">
       <div
         v-if="sorted.length"
-        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+        class="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
 
         <div
           v-for="f in sorted"

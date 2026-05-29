@@ -118,7 +118,7 @@ function mutationInfo(mutation?: string) {
         </div>
 
         <!-- New Fish grid -->
-        <div v-if="activeShopMode === 'new'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        <div v-if="activeShopMode === 'new'" class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           <div
             v-for="item in FISH_SHOP_ITEMS"
             :key="item.type"
@@ -160,7 +160,7 @@ function mutationInfo(mutation?: string) {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             <div
               v-for="mf in marketPool"
               :key="mf.uid"

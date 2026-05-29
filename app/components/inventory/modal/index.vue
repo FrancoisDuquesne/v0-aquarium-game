@@ -43,7 +43,7 @@ const goToShop = () => { activeSection.value = "shop"; };
         <!-- Drawer panel -->
         <div
           class="relative rounded-t-2xl flex flex-col overflow-hidden w-full max-w-7xl"
-          style="height: 72vh; background: rgba(2, 6, 23, 0.97); border-top: 1px solid rgba(255,255,255,0.08); box-shadow: 0 -8px 40px rgba(0,0,0,0.6);">
+          style="height: min(72dvh, 72vh); max-height: 88dvh; background: rgba(2, 6, 23, 0.97); border-top: 1px solid rgba(255,255,255,0.08); box-shadow: 0 -8px 40px rgba(0,0,0,0.6);">
 
           <!-- Teal ambient glow at top edge -->
           <div class="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-cyan-500/40 blur-sm pointer-events-none" />

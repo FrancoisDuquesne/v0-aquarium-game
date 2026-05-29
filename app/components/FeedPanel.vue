@@ -2,6 +2,8 @@
 const game = useGameStore();
 const now = useNow({ interval: 1000 });
 const isCollapsed = ref(false);
+// Start collapsed on narrow screens so the tank is unobstructed on mobile
+onMounted(() => { if (window.innerWidth < 640) isCollapsed.value = true; });
 
 const autoFeederLabel = computed(() => {
   if (!game.autoFeeder.active) return null;
