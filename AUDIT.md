@@ -53,43 +53,11 @@ Singleton `getMasterGain()` replaces per-call `masterGain()`; `toggleMute` updat
 
 Every coin spawn and flake add creates a new array via spread. These run every 5s per fish and at 60fps respectively, putting constant allocation pressure on the GC.
 
-### 2-A · `spawnCoinDrop` — stop spreading the whole array
+### ~~2-A · `spawnCoinDrop` array spread~~ ✅ DONE
+### ~~2-B · `addFlakeAtPercent` array spread~~ ✅ DONE
+### ~~2-C · `tick()` fish array rebuild~~ ✅ DONE
 
-**File:** `app/stores/game.ts:1273`
-
-```ts
-// Before
-const trimmed = [...coinDrops.value, drop];
-if (trimmed.length > DROP_MAX) trimmed.splice(0, trimmed.length - DROP_MAX);
-coinDrops.value = trimmed;
-
-// After
-coinDrops.value.push(drop);
-if (coinDrops.value.length > DROP_MAX) {
-  coinDrops.value.splice(0, coinDrops.value.length - DROP_MAX);
-}
-```
-
-### 2-B · `addFlakeAtPercent` — stop spreading flakeIds
-
-**File:** `app/components/AquariumDisplay.vue:401`
-
-```ts
-// Before
-flakeIds.value = [...flakeIds.value, id].slice(-MAX_FLAKES);
-
-// After
-flakeIds.value.push(id);
-if (flakeIds.value.length > MAX_FLAKES) flakeIds.value.shift();
-```
-
-### 2-C · `tick()` — stop rebuilding fish array every tick
-
-**File:** `app/stores/game.ts:1466–1541`
-
-The `updatedFish: FishData[]` accumulator builds a fresh array then assigns `fish.value = updatedFish` every 5 seconds. This copies the entire fish array.
-
-**Fix:** Mutate in place. Iterate `fish.value` by index, update properties directly. Only build a new array for the dying-fish filter (which is already a separate step).
+Mutate in place; only filter on death.
 
 ---
 

@@ -398,7 +398,8 @@ function addFlakeAtPercent(xPct: number, yPct: number, chargeCoins = true) {
     createdAt: performance.now(),
   };
   flakes.set(id, fl);
-  flakeIds.value = [...flakeIds.value, id].slice(-MAX_FLAKES);
+  flakeIds.value.push(id);
+  if (flakeIds.value.length > MAX_FLAKES) flakeIds.value.shift();
   if (chargeCoins) {
     game.chargeFlake();
     playFeedSound();

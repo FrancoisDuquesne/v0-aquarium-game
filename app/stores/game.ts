@@ -1270,9 +1270,10 @@ export const useGameStore = defineStore("game", () => {
       expiresAt: now + dropLifetimeMs.value,
       source,
     };
-    const trimmed = [...coinDrops.value, drop];
-    if (trimmed.length > DROP_MAX) trimmed.splice(0, trimmed.length - DROP_MAX);
-    coinDrops.value = trimmed;
+    coinDrops.value.push(drop);
+    if (coinDrops.value.length > DROP_MAX) {
+      coinDrops.value.splice(0, coinDrops.value.length - DROP_MAX);
+    }
   }
 
   function scheduleCoinDrop(
@@ -1460,7 +1461,7 @@ export const useGameStore = defineStore("game", () => {
       amount: number;
       qualityFactor: number;
     }[] = [];
-    const updatedFish: FishData[] = [];
+    const dyingIds = new Set<number>();
 
     const defaultBornAt = now - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END);
     const friendCountCapped = Math.min(2, fish.value.length - 1);
@@ -1527,30 +1528,26 @@ export const useGameStore = defineStore("game", () => {
         });
       }
 
-      updatedFish.push({
-        ...entry,
-        hunger: nextHunger,
-        health: nextHealth,
-        boredom: nextBoredom,
-        careStreak,
-        coinProgress: progress,
-      });
+      // Mutate in place
+      entry.hunger = nextHunger;
+      entry.health = nextHealth;
+      entry.boredom = nextBoredom;
+      entry.careStreak = careStreak;
+      entry.coinProgress = progress;
+
+      // Collect dying fish ids
+      if (nextHealth <= 0) {
+        dyingIds.add(entry.id);
+        pendingDeaths.value.push({ id: entry.id, name: entry.name, type: entry.type });
+      } else if ((now - (entry.bornAt ?? defaultBornAt)) >= fishLifespan(entry.type, entry.genetics)) {
+        dyingIds.add(entry.id);
+        pendingDeaths.value.push({ id: entry.id, name: entry.name, type: entry.type });
+      }
     });
 
-    const dying = updatedFish.filter((entry) => entry.health <= 0);
-    const ageDying = updatedFish.filter((entry) => {
-      if (entry.health <= 0) return false;
-      return (now - (entry.bornAt ?? defaultBornAt)) >= fishLifespan(entry.type, entry.genetics);
-    });
-    const allDying = [...dying, ...ageDying];
-    if (allDying.length) {
-      pendingDeaths.value = [
-        ...pendingDeaths.value,
-        ...allDying.map((e) => ({ id: e.id, name: e.name, type: e.type })),
-      ];
+    if (dyingIds.size) {
+      fish.value = fish.value.filter((entry) => !dyingIds.has(entry.id));
     }
-    const dyingIds = new Set(allDying.map((e) => e.id));
-    fish.value = updatedFish.filter((entry) => !dyingIds.has(entry.id));
 
     dropsToSpawn.forEach(({ origin, amount, qualityFactor }) =>
       scheduleCoinDrop(origin, amount, "baseline", qualityFactor)
