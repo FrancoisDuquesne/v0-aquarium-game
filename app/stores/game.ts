@@ -163,6 +163,9 @@ interface GameState {
 
 const dropTimers = new Set<number>();
 
+let _nextId = 1;
+function nextId() { return _nextId++; }
+
 function normalizeBackgroundPath(path: unknown): string {
   if (typeof path !== "string" || !path.length) return DEFAULT_BACKGROUND;
   let normalized = path;
@@ -562,6 +565,10 @@ export const useGameStore = defineStore("game", () => {
 
       // Retroactively unlock state-based achievements on first load
       checkAchievements();
+
+      // Seed monotonic counter above highest persisted id to avoid collisions
+      const maxFishId = fish.value.reduce((m, f) => Math.max(m, f.id), 0);
+      _nextId = Math.max(_nextId, maxFishId + 1);
     } catch (error) {
       console.warn("[game] Unable to read saved state", error);
     }
@@ -924,7 +931,7 @@ export const useGameStore = defineStore("game", () => {
     // Create the baby fish
     const maxGen = Math.max(parent1?.generation ?? 0, parent2?.generation ?? 0);
     const babyFish: FishData = normalizeFish({
-      id: Date.now(),
+      id: nextId(),
       type: breeding.babyType,
       name: breeding.babyName,
       x: Math.random() * 80 + 10,
@@ -966,7 +973,7 @@ export const useGameStore = defineStore("game", () => {
 
     const queued = incubator.queuedBaby;
     const babyFish: FishData = normalizeFish({
-      id: Date.now(),
+      id: nextId(),
       type: queued.type,
       name: queued.name,
       x: Math.random() * 80 + 10,
@@ -1091,7 +1098,7 @@ export const useGameStore = defineStore("game", () => {
     coins.value -= entry.price;
     fish.value.push(
       normalizeFish({
-        id: Date.now(),
+        id: nextId(),
         type: entry.type,
         name: entry.name,
         x: Math.random() * 80 + 10,
@@ -1158,7 +1165,7 @@ export const useGameStore = defineStore("game", () => {
   function buyFish(type: string, cost: number) {
     if (coins.value < cost) return;
     if (fish.value.length >= tankCapacity.value) return;
-    const id = Date.now();
+    const id = nextId();
     coins.value -= cost;
     fish.value.push(
       normalizeFish({
@@ -1256,7 +1263,7 @@ export const useGameStore = defineStore("game", () => {
     );
     const fallDistance = Math.max(0, landingY - spawnY);
     const drop: CoinDrop = {
-      id: now + Math.random(),
+      id: nextId(),
       value: adjusted,
       x: clamp(origin.x + jitterX, 6, 94),
       y: landingY,

@@ -31,18 +31,9 @@ These are isolated, low-risk, high-value changes with no architectural impact.
 
 ---
 
-### 1-C · Fix fragile ID generation
+### ~~1-C · Fix fragile ID generation~~ ✅ DONE
 
-Fish IDs use `Date.now()` — two fish bought in the same millisecond share an ID. Coin drop IDs use `Date.now() + Math.random()` which produces floats used as Map keys.
-
-**Fix:** Add a module-level monotonic counter to `game.ts`:
-
-```ts
-let _nextId = 1;
-function nextId() { return _nextId++; }
-```
-
-Use `nextId()` everywhere an id is generated (fish, coin drops, flakes). Reset `_nextId` to `Math.max(...fish.value.map(f => f.id)) + 1` after `load()` to avoid collision with persisted IDs.
+Monotonic `nextId()` counter added; all fish + coin-drop id sites updated; `_nextId` seeded from max persisted fish id after `load()`.
 
 ---
 
