@@ -13,6 +13,8 @@ const categories: { id: Category; icon: string; label: string }[] = [
   { id: "powerups", icon: "⚡", label: "Power-ups" },
 ];
 
+const ownedFishTypes = computed(() => new Set(game.fish.map((f) => f.type)));
+
 const ownedUpgrades = computed(() => {
   const owned = new Set<UpgradeId>();
   (Object.keys(game.upgrades) as UpgradeId[]).forEach((key) => {
@@ -122,8 +124,17 @@ function mutationInfo(mutation?: string) {
           <div
             v-for="item in FISH_SHOP_ITEMS"
             :key="item.type"
-            class="rounded-xl p-3 flex flex-col gap-2"
-            style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+            class="rounded-xl p-3 flex flex-col gap-2 relative"
+            :style="ownedFishTypes.has(item.type)
+              ? 'background: rgba(34,211,238,0.05); border: 1px solid rgba(34,211,238,0.18);'
+              : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'">
+            <!-- In-tank badge -->
+            <div
+              v-if="ownedFishTypes.has(item.type)"
+              class="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+              style="background: rgba(34,211,238,0.15); color: #67e8f9; border: 1px solid rgba(34,211,238,0.3);">
+              In Tank
+            </div>
             <div class="flex items-center gap-2">
               <div class="w-10 h-8 flex items-center justify-center rounded-lg shrink-0"
                 style="background: rgba(255,255,255,0.06);">
