@@ -37,11 +37,9 @@ Monotonic `nextId()` counter added; all fish + coin-drop id sites updated; `_nex
 
 ---
 
-### 1-D · `checkAchievements` called on every mutation
+### ~~1-D · `checkAchievements` called on every mutation~~ ✅ DONE
 
-Called after `feedFish`, `buyFish`, `buyMarketFish`, `buyTankExpansion`, `buyAutoFeeder`, `buyUpgrade`, `checkIncubation`, `spawnQueuedBaby`. Each call iterates all 13 `ACHIEVEMENT_DEFINITIONS`.
-
-**Fix:** Remove all call sites except the one inside `tick()`. If an immediate unlock is needed (e.g. right after buying a fish before the next tick), call it once at the end of the relevant action, not scattered everywhere. Long-term, replace with targeted checks: "fish count changed → only check fish-count achievements."
+Removed from all scattered call sites; single call added at end of `tick()`.
 
 ---
 

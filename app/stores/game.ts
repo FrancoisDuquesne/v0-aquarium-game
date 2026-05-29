@@ -962,7 +962,6 @@ export const useGameStore = defineStore("game", () => {
     }
 
     fish.value.push(babyFish);
-    checkAchievements();
     save();
     return { hatched: true, baby: babyFish };
   }
@@ -992,7 +991,6 @@ export const useGameStore = defineStore("game", () => {
 
     fish.value.push(babyFish);
     incubator.queuedBaby = null;
-    checkAchievements();
     save();
     return babyFish;
   }
@@ -1047,7 +1045,6 @@ export const useGameStore = defineStore("game", () => {
     totalFeedCount.value++;
     dailyState.value.feedCount++;
     updateMissionProgress("feed", dailyState.value.feedCount);
-    checkAchievements();
 
     setTimeout(() => {
       if (feedingFishId.value === id) feedingFishId.value = null;
@@ -1111,7 +1108,6 @@ export const useGameStore = defineStore("game", () => {
       })
     );
     market.pool = market.pool.filter(m => m.uid !== uid);
-    checkAchievements();
     save();
   }
 
@@ -1179,7 +1175,6 @@ export const useGameStore = defineStore("game", () => {
         bornAt: Date.now(),
       })
     );
-    checkAchievements();
     save();
   }
 
@@ -1188,7 +1183,6 @@ export const useGameStore = defineStore("game", () => {
     if (purchasedExpansions.value.includes(id)) return false;
     coins.value -= cost;
     purchasedExpansions.value = [...purchasedExpansions.value, id];
-    checkAchievements();
     save();
     return true;
   }
@@ -1220,7 +1214,6 @@ export const useGameStore = defineStore("game", () => {
       dailyState.value.dropsCollected += dropCountBefore;
       updateMissionProgress("collect-coins", dailyState.value.coinsCollected);
       updateMissionProgress("collect-drops", dailyState.value.dropsCollected);
-      checkAchievements();
       save();
     }
     return total;
@@ -1329,7 +1322,6 @@ export const useGameStore = defineStore("game", () => {
     dailyState.value.dropsCollected++;
     updateMissionProgress("collect-coins", dailyState.value.coinsCollected);
     updateMissionProgress("collect-drops", dailyState.value.dropsCollected);
-    checkAchievements();
     save();
   }
 
@@ -1387,7 +1379,6 @@ export const useGameStore = defineStore("game", () => {
     if (coins.value < cost) return false;
     coins.value -= cost;
     upgrades[id] = true;
-    checkAchievements();
     save();
     return true;
   }
@@ -1433,7 +1424,6 @@ export const useGameStore = defineStore("game", () => {
     autoFeeder.owned = true;
     autoFeeder.active = true;
     autoFeeder.lastFeedTime = Date.now();
-    checkAchievements();
     save();
   }
 
@@ -1668,6 +1658,7 @@ export const useGameStore = defineStore("game", () => {
       }
     }
 
+    checkAchievements();
     save();
   }
 
