@@ -90,14 +90,14 @@ const autoFeederButtonLabel = computed(() => {
 
       <div class="h-px mx-1" style="background: rgba(255,255,255,0.07);" />
 
-      <!-- Collect All -->
+      <!-- Collect All — only shown when drops are waiting -->
       <UButton
-        :color="pendingDrops > 0 ? 'warning' : 'neutral'"
-        :variant="pendingDrops > 0 ? 'soft' : 'ghost'"
-        :label="pendingDrops > 0 ? `💰  Collect All  ·  ${pendingDrops}` : '💰  Collect All'"
-        :disabled="pendingDrops === 0"
+        v-if="pendingDrops > 0"
+        color="warning"
+        variant="soft"
+        :label="`💰  Collect All  ·  ${pendingDrops}`"
         block
-        @click="pendingDrops > 0 ? game.collectAll() : undefined" />
+        @click="game.collectAll()" />
 
     </div>
   </div>
