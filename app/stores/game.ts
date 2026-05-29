@@ -295,10 +295,10 @@ export const useGameStore = defineStore("game", () => {
   const totalFeedCount = ref(0);
   const maxCareStreakEver = ref(0);
   const dailyState = ref<DailyState>({
-    date: "",
-    loginStreak: 0,
+    date: new Date().toISOString().slice(0, 10),
+    loginStreak: 1,
     bonusClaimed: false,
-    missions: [],
+    missions: generateDailyMissions(),
     feedCount: 0,
     coinsCollected: 0,
     dropsCollected: 0,
@@ -1261,6 +1261,7 @@ export const useGameStore = defineStore("game", () => {
     isCollectorReady,
     collectorCapacity,
     averageHunger,
+    hungerDecayPerTick,
     showHowTo,
     load,
     save,
