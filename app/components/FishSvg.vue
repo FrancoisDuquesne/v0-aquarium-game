@@ -1,5 +1,16 @@
 <script setup lang="ts">
-const props = defineProps<{ type: string; width?: number; height?: number; class?: string }>()
+import { seededRng } from '~/utils/economy'
+import type { GeneticsData } from '~/utils/game-config'
+
+const props = defineProps<{
+  type: string
+  width?: number
+  height?: number
+  class?: string
+  fishId?: number
+  genetics?: GeneticsData
+  generation?: number
+}>()
 
 const VIEWBOXES: Record<string, string> = {
   goldfish:        '0 0 56 36',
@@ -16,267 +27,459 @@ const VIEWBOXES: Record<string, string> = {
 }
 
 const viewBox = computed(() => VIEWBOXES[props.type] || VIEWBOXES.goldfish)
+
+// Deterministic per-fish visual variation seeded by fishId
+const traits = computed(() => {
+  const id = props.fishId ?? 0
+  const rng = seededRng(id * 97 + 41)
+  const r0 = rng()  // hue shift
+  const r1 = rng()  // saturation
+  const r2 = rng()  // brightness
+  return {
+    hue: (r0 - 0.5) * 22,   // ±11°
+    sat: 0.88 + r1 * 0.24,  // 0.88–1.12
+    bri: 0.95 + r2 * 0.10,  // 0.95–1.05
+  }
+})
+
+// CSS filter string combining per-fish randomness + genetics
+const filterStyle = computed(() => {
+  const t    = traits.value
+  const g    = props.genetics
+  const mut  = g?.mutation
+  const gen  = props.generation ?? 0
+
+  let hue = t.hue
+  let sat = t.sat
+  let bri = t.bri
+
+  // Bred fish are slightly more vibrant per generation
+  if (gen > 0) {
+    sat = Math.min(sat * (1 + gen * 0.07), 1.6)
+    bri = Math.min(bri * (1 + gen * 0.02), 1.25)
+  }
+
+  // Genetics modifiers
+  const coinMod   = g?.coinMod   ?? 1
+  const speedMod  = g?.speedMod  ?? 1
+  const healthMod = g?.healthMod ?? 1
+  const hungerMod = g?.hungerMod ?? 1
+
+  // High coin output → brighter/warmer
+  if (coinMod > 1.1)   bri  = Math.min(bri  * (1 + (coinMod  - 1) * 0.22), 1.35)
+  // Swift fish → cooler blue hue
+  if (speedMod > 1.15) hue -= (speedMod - 1) * 25
+  // Hardy fish → richer saturation, slight green tint
+  if (healthMod > 1.1) { sat = Math.min(sat * 1.1, 1.55); hue -= 8 }
+  // Voracious fish → warmer
+  if (hungerMod > 1.2) hue += (hungerMod - 1) * 15
+
+  // Mutation overrides take full control of color
+  if (mut === 'golden')   return 'sepia(0.55) hue-rotate(18deg) saturate(2.4) brightness(1.22)'
+  if (mut === 'sickly')   return `hue-rotate(${hue.toFixed(1)}deg) saturate(0.18) brightness(0.72) contrast(0.82)`
+  if (mut === 'lethargic')return `hue-rotate(${hue.toFixed(1)}deg) saturate(${(sat*0.55).toFixed(2)}) brightness(${(bri*0.84).toFixed(2)})`
+  if (mut === 'swift')    return `hue-rotate(${(hue-20).toFixed(1)}deg) saturate(${(sat*1.18).toFixed(2)}) brightness(${(bri*1.06).toFixed(2)})`
+  if (mut === 'hardy')    return `hue-rotate(${(hue-10).toFixed(1)}deg) saturate(${(sat*1.15).toFixed(2)}) brightness(${(bri*1.07).toFixed(2)})`
+  if (mut === 'voracious')return `hue-rotate(${(hue+12).toFixed(1)}deg) saturate(${(sat*1.28).toFixed(2)}) brightness(${bri.toFixed(2)})`
+
+  return `hue-rotate(${hue.toFixed(1)}deg) saturate(${sat.toFixed(2)}) brightness(${bri.toFixed(2)})`
+})
+
+
 </script>
 
 <template>
-  <svg :width="width" :height="height" :viewBox="viewBox" :class="props.class" pointer-events="none" overflow="visible">
+  <svg
+    :width="width"
+    :height="height"
+    :viewBox="viewBox"
+    :class="props.class"
+    pointer-events="none"
+    overflow="visible"
+  >
 
-    <!-- ── Goldfish (56×36) ─── round fancy goldfish, orange ──────────────── -->
-    <g v-if="type === 'goldfish'">
-      <!-- double veil tail -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         GOLDFISH (56×36) — round fancy veil-tail goldfish, warm orange
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-if="type === 'goldfish'" :style="{ filter: filterStyle }">
+      <!-- outer double veil tail -->
       <g class="fish-tail">
-        <path d="M18 18 L3 8 L14 17 L3 28 Z" fill="#c2410c"/>
-        <path d="M18 18 L5 12 L13 18 L5 24 Z" fill="#f97316" opacity="0.55"/>
+        <path d="M 20 18 L 2 4 L 12 15 L 2 32 L 12 21 Z" fill="#b83c00"/>
+        <path d="M 20 18 L 5 8 L 14 16 L 5 28 L 14 20 Z" fill="#f97316" opacity="0.55"/>
+        <!-- tail ray lines -->
+        <line x1="20" y1="18" x2="4" y2="6"  stroke="#c2410c" stroke-width="0.5" opacity="0.6"/>
+        <line x1="20" y1="18" x2="3" y2="18" stroke="#c2410c" stroke-width="0.5" opacity="0.5"/>
+        <line x1="20" y1="18" x2="4" y2="30" stroke="#c2410c" stroke-width="0.5" opacity="0.6"/>
       </g>
-      <!-- body -->
-      <ellipse cx="33" cy="18" rx="16" ry="11" fill="#f97316"/>
-      <!-- belly sheen -->
-      <ellipse cx="34" cy="21" rx="10" ry="7" fill="#fde68a" opacity="0.35"/>
-      <!-- dorsal fin — attached to body top (y=7) -->
-      <path d="M23 7 C21 2 27 0 33 1 C38 2 40 5 39 7 Z" fill="#c2410c"/>
+      <!-- body — round disc, slightly hump-backed -->
+      <path
+        d="M 20 18 C 20 9 25 4 34 4 C 43 4 49 10 49 18 C 49 26 43 32 34 32 C 25 32 20 27 20 18 Z"
+        fill="#f97316"/>
+      <!-- belly sheen / gradient highlight -->
+      <ellipse cx="35" cy="23" rx="11" ry="7" fill="#fde68a" opacity="0.36"/>
+      <!-- dorsal fin — tall sail -->
+      <path d="M 25 4 C 23 -1 29 -2 35 -1 C 42 0 44 3 42 4 Z" fill="#c2410c"/>
+      <!-- ventral fin pair -->
+      <path d="M 30 32 L 33 37 L 37 32 Z" fill="#c2410c" opacity="0.7"/>
       <!-- pectoral fin -->
-      <path d="M36 22 L44 28 L36 26 Z" fill="#fb923c" opacity="0.75"/>
-      <!-- gill line -->
-      <path d="M39 9 Q37 18 39 27" stroke="#ea580c" stroke-width="1" fill="none" opacity="0.35"/>
-      <!-- eye -->
-      <circle cx="44" cy="12" r="2.5" fill="#1c1917"/>
-      <circle cx="44.8" cy="11.2" r="0.8" fill="white" opacity="0.8"/>
+      <path d="M 39 24 L 47 31 L 38 29 Z" fill="#fb923c" opacity="0.72"/>
+      <!-- gill arch -->
+      <path d="M 41 7 Q 39 18 41 29" stroke="#ea580c" stroke-width="1.3" fill="none" opacity="0.38"/>
+      <!-- eye — large, prominent (goldfish trait) -->
+      <circle cx="45" cy="13" r="3.2" fill="#1c1917"/>
+      <circle cx="46.2" cy="11.8" r="1.1" fill="white" opacity="0.88"/>
     </g>
 
-    <!-- ── Angelfish (42×56) ─── tall disc, silver with stripes ─────────── -->
-    <g v-else-if="type === 'angelfish'">
-      <!-- tall dorsal fin -->
-      <path d="M36 18 Q30 5 22 3 Q14 5 12 13 L15 16 Q18 7 22 5 Q29 7 34 17 Z" fill="#64748b" opacity="0.85"/>
-      <!-- tall anal fin (bottom) -->
-      <path d="M36 38 Q30 51 22 53 Q14 51 12 43 L15 40 Q18 49 22 51 Q29 49 34 39 Z" fill="#64748b" opacity="0.85"/>
-      <!-- tail -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ANGELFISH (42×56) — tall triangular disc, silver with dark bars
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'angelfish'" :style="{ filter: filterStyle }">
+      <!-- long pointed dorsal fin -->
+      <path d="M 26 8 C 22 4 17 1 14 3 L 14 10 C 17 7 22 7 26 8 Z" fill="#64748b" opacity="0.88"/>
+      <!-- long pointed anal fin -->
+      <path d="M 26 48 C 22 52 17 55 14 53 L 14 46 C 17 49 22 49 26 48 Z" fill="#64748b" opacity="0.88"/>
+      <!-- forked tail -->
       <g class="fish-tail fish-tail--flowing">
-        <path d="M14 28 L2 21 L13 27 Z" fill="#94a3b8"/>
-        <path d="M14 28 L2 35 L13 29 Z" fill="#94a3b8"/>
+        <path d="M 14 28 L 2 19 L 12 27 Z" fill="#94a3b8"/>
+        <path d="M 14 28 L 2 37 L 12 29 Z" fill="#94a3b8"/>
       </g>
-      <!-- body -->
-      <ellipse cx="26" cy="28" rx="13" ry="15" fill="#c8d1da"/>
-      <ellipse cx="26" cy="28" rx="8" ry="10" fill="#e2e8f0" opacity="0.45"/>
-      <!-- stripes -->
-      <path d="M32 14 Q34 28 32 42" stroke="#334155" stroke-width="2.5" fill="none" opacity="0.45"/>
-      <path d="M24 13 Q26 28 24 43" stroke="#334155" stroke-width="2.5" fill="none" opacity="0.45"/>
+      <!-- body — tall narrow diamond -->
+      <path
+        d="M 14 28 C 15 18 19 9 26 8 C 31 9 36 17 36 28 C 36 39 31 47 26 48 C 19 47 15 38 14 28 Z"
+        fill="#c8d1da"/>
+      <!-- belly shimmer -->
+      <ellipse cx="27" cy="28" rx="7" ry="11" fill="#e8eef4" opacity="0.45"/>
+      <!-- 2 dark vertical bars (characteristic marking) -->
+      <path d="M 28 9 Q 30 28 28 47 L 31 47 Q 33 28 31 9 Z" fill="#334155" opacity="0.48"/>
+      <path d="M 22 9 Q 24 28 22 47 L 25 47 Q 27 28 25 9 Z" fill="#334155" opacity="0.42"/>
       <!-- pectoral fin -->
-      <path d="M30 32 L37 38 L29 37 Z" fill="#94a3b8" opacity="0.7"/>
+      <path d="M 29 34 L 37 40 L 29 38 Z" fill="#94a3b8" opacity="0.7"/>
       <!-- eye -->
-      <circle cx="33" cy="22" r="2.5" fill="#1e293b"/>
-      <circle cx="33.8" cy="21.2" r="0.8" fill="white" opacity="0.8"/>
+      <circle cx="33" cy="21" r="2.8" fill="#1e293b"/>
+      <circle cx="34" cy="20" r="0.9" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Neon Tetra (44×18) ─── slender, teal stripe + red rear ─────── -->
-    <g v-else-if="type === 'neon'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         NEON TETRA (44×18) — slim torpedo, teal band + red rear stripe
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'neon'" :style="{ filter: filterStyle }">
+      <!-- tail — quick twitch -->
       <g class="fish-tail fish-tail--fast">
-        <path d="M8 9 L1 5 L7 9 L1 13 Z" fill="#0891b2"/>
+        <path d="M 8 9 L 1 5 L 7 8 L 1 13 L 7 10 Z" fill="#0e7490"/>
       </g>
-      <!-- body -->
-      <ellipse cx="25" cy="9" rx="18" ry="5.5" fill="#f0f9ff"/>
-      <!-- metallic blue stripe along top half -->
-      <path d="M8 5.5 Q24 4.5 42 5.5 L42 7.5 Q24 7 8 7.5 Z" fill="#06b6d4"/>
-      <!-- red lower-rear stripe -->
-      <path d="M8 9.5 Q14 10 22 11 L22 12.5 Q14 12 8 11 Z" fill="#f43f5e" opacity="0.9"/>
+      <!-- body — slim torpedo -->
+      <path
+        d="M 8 9 C 9 5 17 3 27 3 C 36 3 42 6 42 9 C 42 12 36 15 27 15 C 17 15 9 13 8 9 Z"
+        fill="#f0f9ff"/>
+      <!-- metallic blue-teal dorsal band (most of upper body) -->
+      <path d="M 9 6 C 18 4 30 4 41 5.5 L 41 7.5 C 30 6 18 6.5 9 8 Z" fill="#06b6d4"/>
+      <!-- iridescent highlight on blue stripe -->
+      <path d="M 18 4.5 C 24 4 32 4.2 38 5 L 38 6 C 32 5 24 5 18 5.5 Z" fill="#a5f3fc" opacity="0.55"/>
+      <!-- red stripe — lower rear half (characteristic neon marking) -->
+      <path d="M 8 10 C 12 11 16 12 24 11.5 L 24 13 C 16 13.5 12 12.5 8 11.5 Z" fill="#f43f5e" opacity="0.92"/>
       <!-- small dorsal fin -->
-      <path d="M21 3.5 L25 1 L30 3.5 Z" fill="#0e7490" opacity="0.85"/>
+      <path d="M 21 3 L 24 1 L 29 3 Z" fill="#0e7490" opacity="0.85"/>
+      <!-- tiny adipose fin (between dorsal and tail) -->
+      <path d="M 13 3.5 L 15 2 L 17 3.5 Z" fill="#0e7490" opacity="0.6"/>
+      <!-- small ventral fin -->
+      <path d="M 22 15 L 25 17.5 L 27 15 Z" fill="#0369a1" opacity="0.7"/>
       <!-- eye -->
-      <circle cx="38" cy="7" r="2" fill="#1c1917"/>
-      <circle cx="38.6" cy="6.4" r="0.7" fill="white" opacity="0.8"/>
+      <circle cx="38" cy="7" r="2.1" fill="#1c1917"/>
+      <circle cx="38.8" cy="6.2" r="0.7" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Tropical / Clownfish (48×30) ─── orange with white bands ────── -->
-    <g v-else-if="type === 'tropical'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         CLOWNFISH / TROPICAL (48×30) — orange anemonefish with 3 white bands
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'tropical'" :style="{ filter: filterStyle }">
+      <!-- rounded tail fin -->
       <g class="fish-tail">
-        <path d="M11 15 L2 9 L9 14 L2 21 Z" fill="#ea580c"/>
+        <path d="M 12 15 L 2 8 L 9 13 L 2 22 L 9 17 Z" fill="#c2410c"/>
+        <path d="M 12 15 L 4 11 L 9 15 L 4 20 L 9 16 Z" fill="#f97316" opacity="0.5"/>
       </g>
-      <!-- body -->
-      <ellipse cx="28" cy="15" rx="17" ry="11" fill="#f97316"/>
-      <!-- white band 1 (mid-body) -->
-      <path d="M22 4 Q20 15 22 26 L25 26 Q23 15 25 4 Z" fill="white" opacity="0.95"/>
-      <path d="M21.2 4 Q19.2 15 21.2 26 L22 26 Q20 15 22 4 Z" fill="#1c1917" opacity="0.45"/>
-      <path d="M25 4 Q23 15 25 26 L25.8 26 Q23.8 15 25.8 4 Z" fill="#1c1917" opacity="0.45"/>
-      <!-- white band 2 (through eye area) -->
-      <path d="M37 5 Q35 15 37 25 L40 25 Q38 15 40 5 Z" fill="white" opacity="0.9"/>
-      <path d="M36.2 5 Q34.2 15 36.2 25 L37 25 Q35 15 37 5 Z" fill="#1c1917" opacity="0.4"/>
-      <path d="M40 5 Q38 15 40 25 L40.8 25 Q38.8 15 40.8 5 Z" fill="#1c1917" opacity="0.4"/>
-      <!-- dorsal fin -->
-      <path d="M19 4 L21 0 L32 0 L34 4 Z" fill="#c2410c" opacity="0.9"/>
+      <!-- body — oval, slightly rounded -->
+      <path
+        d="M 12 15 C 13 8 18 4 28 4 C 37 4 44 9 44 15 C 44 21 37 26 28 26 C 18 26 13 22 12 15 Z"
+        fill="#f97316"/>
+      <!-- belly warmth -->
+      <ellipse cx="29" cy="19" rx="10" ry="5.5" fill="#fde68a" opacity="0.28"/>
+      <!-- white band 1 — rear body (near tail) -->
+      <path d="M 18 4.5 Q 16 15 18 25.5 L 22 25.5 Q 20 15 22 4.5 Z" fill="white" opacity="0.95"/>
+      <path d="M 17.2 4.5 Q 15.2 15 17.2 25.5 L 18 25.5 Q 16 15 18 4.5 Z" fill="#0f172a" opacity="0.55"/>
+      <path d="M 22 4.5 Q 20 15 22 25.5 L 22.8 25.5 Q 20.8 15 22.8 4.5 Z" fill="#0f172a" opacity="0.55"/>
+      <!-- white band 2 — mid body -->
+      <path d="M 30 4 Q 28 15 30 26 L 34 26 Q 32 15 34 4 Z" fill="white" opacity="0.9"/>
+      <path d="M 29.2 4 Q 27.2 15 29.2 26 L 30 26 Q 28 15 30 4 Z" fill="#0f172a" opacity="0.45"/>
+      <path d="M 34 4 Q 32 15 34 26 L 34.8 26 Q 32.8 15 34.8 4 Z" fill="#0f172a" opacity="0.45"/>
+      <!-- white band 3 — head (eye bar) -->
+      <path d="M 39.5 5.5 Q 38 15 39.5 24.5 L 43 24.5 Q 41.5 15 43 5.5 Z" fill="white" opacity="0.85"/>
+      <path d="M 38.7 5.5 Q 37.2 15 38.7 24.5 L 39.5 24.5 Q 38 15 39.5 5.5 Z" fill="#0f172a" opacity="0.4"/>
+      <!-- dorsal fin — rounded, dark-tipped -->
+      <path d="M 19 4 C 21 0 30 0 33 4 Z" fill="#c2410c" opacity="0.88"/>
       <!-- anal fin -->
-      <path d="M23 26 L25 30 L30 26 Z" fill="#c2410c" opacity="0.8"/>
+      <path d="M 23 26 C 25 30 30 30 32 26 Z" fill="#c2410c" opacity="0.75"/>
       <!-- pectoral fin -->
-      <path d="M34 19 L42 24 L34 23 Z" fill="#fb923c" opacity="0.7"/>
+      <path d="M 36 20 L 43 25 L 35 23 Z" fill="#fb923c" opacity="0.7"/>
+      <!-- gill line -->
+      <path d="M 40 6.5 Q 38 15 40 23.5" stroke="#c2410c" stroke-width="1" fill="none" opacity="0.35"/>
       <!-- eye -->
-      <circle cx="41" cy="10" r="2.5" fill="#1c1917"/>
-      <circle cx="41.8" cy="9.2" r="0.8" fill="white" opacity="0.8"/>
+      <circle cx="42" cy="10.5" r="2.6" fill="#1c1917"/>
+      <circle cx="43" cy="9.5" r="0.9" fill="white" opacity="0.85"/>
     </g>
 
-    <!-- ── Shark (64×30) ─── torpedo, large dorsal fin ───────────────────── -->
-    <g v-else-if="type === 'shark'">
-      <!-- asymmetric caudal fin (upper lobe larger) -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         SHARK (64×30) — torpedo body, large dorsal, heterocercal tail
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'shark'" :style="{ filter: filterStyle }">
+      <!-- heterocercal caudal fin (upper lobe much larger) -->
       <g class="fish-tail fish-tail--fast">
-        <path d="M16 15 L2 7 L14 14 Z" fill="#64748b"/>
-        <path d="M16 15 L4 21 L14 16 Z" fill="#64748b" opacity="0.7"/>
+        <path d="M 17 15 L 2 5 L 14 13 Z"  fill="#475569"/>
+        <path d="M 17 15 L 5 21 L 14 16 Z" fill="#64748b" opacity="0.7"/>
       </g>
-      <!-- body -->
-      <path d="M59 15 Q52 6 36 6 Q16 6 16 15 Q16 24 36 24 Q52 24 59 15 Z" fill="#94a3b8"/>
-      <!-- white belly -->
-      <path d="M57 15 Q50 10 36 10 Q19 11 18 15 Q19 20 36 21 Q50 21 57 15 Z" fill="#e2e8f0" opacity="0.55"/>
-      <!-- large dorsal fin -->
-      <path d="M24 6 L20 0 L16 0 L16 6 Z" fill="#64748b"/>
-      <!-- pectoral fin -->
-      <path d="M44 17 L52 26 L42 23 Z" fill="#94a3b8" opacity="0.75"/>
-      <!-- gill slit -->
-      <path d="M50 8 Q48 15 50 22" stroke="#475569" stroke-width="1.5" fill="none" opacity="0.35"/>
-      <!-- eye -->
-      <circle cx="54" cy="11" r="2" fill="#1c1917"/>
-      <circle cx="54.6" cy="10.4" r="0.7" fill="white" opacity="0.7"/>
+      <!-- body — elongated torpedo, tapers at both ends -->
+      <path
+        d="M 17 15 C 18 10 26 6 40 6 C 52 6 61 10 62 15 C 61 20 52 24 40 24 C 26 24 18 20 17 15 Z"
+        fill="#7c8fa0"/>
+      <!-- white underbelly -->
+      <path d="M 18 15 C 20 12 28 10 40 10 C 51 10 59 13 60 15 C 59 17 51 20 40 20 C 28 20 20 18 18 15 Z" fill="#e2e8f0" opacity="0.52"/>
+      <!-- large triangular dorsal fin -->
+      <path d="M 32 6 L 26 0 L 23 0 L 23 6 Z" fill="#5a6e80"/>
+      <!-- secondary small dorsal fin -->
+      <path d="M 44 6 L 42 3 L 47 6 Z" fill="#64748b" opacity="0.7"/>
+      <!-- pectoral fins (swept back) -->
+      <path d="M 44 18 L 54 26 L 43 23 Z" fill="#7c8fa0" opacity="0.78"/>
+      <path d="M 42 17 L 34 24 L 42 22 Z" fill="#7c8fa0" opacity="0.5"/>
+      <!-- gill slits (3 short lines) -->
+      <path d="M 51 8  Q 49.5 15 51 22" stroke="#4a5e70" stroke-width="1.2" fill="none" opacity="0.4"/>
+      <path d="M 54 9  Q 52.5 15 54 21" stroke="#4a5e70" stroke-width="0.9" fill="none" opacity="0.3"/>
+      <!-- eye — cold, small relative to head -->
+      <circle cx="57" cy="11" r="2.4" fill="#1c1917"/>
+      <circle cx="57.8" cy="10.2" r="0.8" fill="white" opacity="0.7"/>
     </g>
 
-    <!-- ── Betta (58×40) ─── jewel fish, long flowing fins ───────────────── -->
-    <g v-else-if="type === 'betta'">
-      <!-- long flowing tail -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         BETTA (58×40) — jewel fish, huge flowing fan tail + ventral streamers
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'betta'" :style="{ filter: filterStyle }">
+      <!-- large flowing fan tail — signature feature -->
       <g class="fish-tail fish-tail--flowing">
-        <path d="M15 20 L1 6 L13 17 L3 29 L15 22 Z" fill="#be123c"/>
-        <path d="M15 20 L3 14 L12 20 L3 26 Z" fill="#e11d48" opacity="0.5"/>
+        <path d="M 18 20 L 1 3  L 11 16 L 2 28 L 14 23 Z" fill="#be123c"/>
+        <path d="M 18 20 L 3 10 L 12 18 L 3 26 Z"         fill="#e11d48" opacity="0.45"/>
+        <!-- tail fin rays -->
+        <line x1="18" y1="20" x2="2"  y2="5"  stroke="#be123c" stroke-width="0.6" opacity="0.55"/>
+        <line x1="18" y1="20" x2="2"  y2="13" stroke="#be123c" stroke-width="0.6" opacity="0.45"/>
+        <line x1="18" y1="20" x2="2"  y2="20" stroke="#be123c" stroke-width="0.6" opacity="0.4"/>
+        <line x1="18" y1="20" x2="2"  y2="27" stroke="#be123c" stroke-width="0.6" opacity="0.45"/>
+        <line x1="18" y1="20" x2="3"  y2="35" stroke="#be123c" stroke-width="0.6" opacity="0.55"/>
       </g>
-      <!-- body -->
-      <ellipse cx="33" cy="20" rx="17" ry="10" fill="#9b1b30"/>
+      <!-- body — compact, deep -->
+      <path
+        d="M 18 20 C 19 13 24 9 33 9 C 42 9 47 14 47 20 C 47 26 42 31 33 31 C 24 31 19 27 18 20 Z"
+        fill="#9f1239"/>
       <!-- iridescent sheen -->
-      <ellipse cx="34" cy="22" rx="11" ry="6" fill="#fda4af" opacity="0.18"/>
+      <ellipse cx="34" cy="23" rx="11" ry="6.5" fill="#fda4af" opacity="0.18"/>
       <!-- tall dorsal fin -->
-      <path d="M25 10 C23 4 29 2 35 3 C40 4 43 7 42 10 Z" fill="#be123c" opacity="0.9"/>
+      <path d="M 24 9 C 22 4 28 2 34 3 C 40 4 43 7 42 9 Z" fill="#be123c" opacity="0.9"/>
+      <!-- long flowing ventral fins (hallmark of betta) -->
+      <path d="M 31 31 L 22 40 L 28 38 Z" fill="#9f1239" opacity="0.78"/>
+      <path d="M 36 31 L 28 40 L 33 39 Z" fill="#be123c" opacity="0.6"/>
       <!-- pectoral fin -->
-      <path d="M37 27 L45 34 L37 32 Z" fill="#9b1b30" opacity="0.75"/>
+      <path d="M 37 26 L 45 33 L 37 31 Z" fill="#9f1239" opacity="0.72"/>
       <!-- gill line -->
-      <path d="M39 12 Q37 20 39 28" stroke="#be123c" stroke-width="1.2" fill="none" opacity="0.4"/>
+      <path d="M 39 11 Q 37 20 39 29" stroke="#be123c" stroke-width="1.2" fill="none" opacity="0.38"/>
       <!-- eye -->
-      <circle cx="44" cy="14" r="2.5" fill="#1c1917"/>
-      <circle cx="44.8" cy="13.2" r="0.8" fill="white" opacity="0.8"/>
+      <circle cx="43" cy="14" r="2.8" fill="#1c1917"/>
+      <circle cx="44" cy="13" r="0.95" fill="white" opacity="0.85"/>
     </g>
 
-    <!-- ── Cherry Barb (42×20) ─── slender, deep red ─────────────────────── -->
-    <g v-else-if="type === 'cherry-barb'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         CHERRY BARB (42×20) — slim, deep cherry-red, dark lateral stripe
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'cherry-barb'" :style="{ filter: filterStyle }">
       <g class="fish-tail">
-        <path d="M8 10 L1 6 L6 10 L1 14 Z" fill="#991b1b"/>
+        <path d="M 8 10 L 1 6 L 6 9 L 1 14 L 6 11 Z" fill="#7f1d1d"/>
       </g>
-      <!-- body -->
-      <ellipse cx="24" cy="10" rx="17" ry="6" fill="#dc2626"/>
-      <!-- lateral line -->
-      <path d="M8 9 L39 9" stroke="#7f1d1d" stroke-width="1.2" opacity="0.55"/>
+      <!-- body — slim streamlined torpedo -->
+      <path
+        d="M 8 10 C 9 6 15 3 24 3 C 32 3 38 6 38 10 C 38 14 32 17 24 17 C 15 17 9 14 8 10 Z"
+        fill="#dc2626"/>
+      <!-- belly highlight -->
+      <ellipse cx="24" cy="12" rx="9" ry="3.5" fill="#fca5a5" opacity="0.3"/>
+      <!-- dark lateral stripe (from snout to tail — characteristic) -->
+      <path d="M 9 9 C 16 8 26 8 38 8.5 L 38 10 C 26 9.5 16 9.5 9 10.5 Z" fill="#7f1d1d" opacity="0.62"/>
       <!-- dorsal fin -->
-      <path d="M18 4 L22 1 L28 4 Z" fill="#b91c1c" opacity="0.9"/>
+      <path d="M 17 3 L 21 0 L 27 3 Z" fill="#b91c1c" opacity="0.88"/>
       <!-- anal fin -->
-      <path d="M21 16 L24 19 L27 16 Z" fill="#b91c1c" opacity="0.75"/>
+      <path d="M 20 17 L 23 20 L 26 17 Z" fill="#b91c1c" opacity="0.72"/>
+      <!-- pectoral fin -->
+      <path d="M 28 13 L 34 17 L 27 16 Z" fill="#ef4444" opacity="0.65"/>
       <!-- eye -->
-      <circle cx="36" cy="7" r="1.8" fill="#1c1917"/>
-      <circle cx="36.6" cy="6.4" r="0.6" fill="white" opacity="0.8"/>
+      <circle cx="35" cy="7.5" r="2" fill="#1c1917"/>
+      <circle cx="35.8" cy="6.8" r="0.7" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Guppy (48×30) ─── small body, large ornate fan tail ──────────── -->
-    <g v-else-if="type === 'guppy'">
-      <!-- large fan tail — guppy's defining feature -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         GUPPY (48×30) — tiny body, enormous ornate fan tail
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'guppy'" :style="{ filter: filterStyle }">
+      <!-- huge ornate fan tail — the defining feature -->
       <g class="fish-tail fish-tail--flowing">
-        <path d="M16 15 L2 4 L13 12 L3 24 L16 17 Z" fill="#2563eb"/>
-        <path d="M16 15 L5 9 L13 15 L5 21 Z" fill="#60a5fa" opacity="0.55"/>
+        <path d="M 22 15 L 2 2  L 12 12 L 3 20 L 14 18 Z" fill="#1d4ed8"/>
+        <path d="M 22 15 L 4 8  L 13 14 Z"                fill="#3b82f6" opacity="0.55"/>
+        <path d="M 22 15 L 3 20 L 12 17 Z"                fill="#60a5fa" opacity="0.45"/>
+        <path d="M 22 15 L 3 28 L 13 20 L 2 20 Z"         fill="#1d4ed8"/>
+        <!-- fan rays -->
+        <line x1="22" y1="15" x2="3"  y2="4"  stroke="#3b82f6" stroke-width="0.6" opacity="0.6"/>
+        <line x1="22" y1="15" x2="2"  y2="11" stroke="#3b82f6" stroke-width="0.6" opacity="0.5"/>
+        <line x1="22" y1="15" x2="2"  y2="15" stroke="#3b82f6" stroke-width="0.6" opacity="0.45"/>
+        <line x1="22" y1="15" x2="2"  y2="20" stroke="#3b82f6" stroke-width="0.6" opacity="0.5"/>
+        <line x1="22" y1="15" x2="3"  y2="27" stroke="#3b82f6" stroke-width="0.6" opacity="0.6"/>
       </g>
-      <!-- body (smaller relative to tail) -->
-      <ellipse cx="31" cy="15" rx="14" ry="8" fill="#60a5fa"/>
-      <ellipse cx="32" cy="17" rx="9" ry="5" fill="#bfdbfe" opacity="0.4"/>
+      <!-- body — small, more rounded toward snout -->
+      <path
+        d="M 22 15 C 23 10 27 7 33 7 C 39 7 44 11 44 15 C 44 19 39 23 33 23 C 27 23 23 20 22 15 Z"
+        fill="#60a5fa"/>
+      <!-- iridescent body shimmer -->
+      <ellipse cx="34" cy="17" rx="8" ry="4.5" fill="#bfdbfe" opacity="0.42"/>
       <!-- dorsal fin -->
-      <path d="M25 7 L27 4 L34 6 L33 7 Z" fill="#1d4ed8" opacity="0.9"/>
-      <!-- anal fin -->
-      <path d="M26 23 L29 27 L32 23 Z" fill="#1d4ed8" opacity="0.75"/>
+      <path d="M 26 7 L 28 4 L 35 6.5 L 34 7 Z" fill="#1d4ed8" opacity="0.88"/>
+      <!-- anal fin (small) -->
+      <path d="M 26 23 L 29 27 L 32 23 Z" fill="#1d4ed8" opacity="0.72"/>
+      <!-- pectoral fin -->
+      <path d="M 35 19 L 40 23 L 34 22 Z" fill="#3b82f6" opacity="0.68"/>
       <!-- eye -->
-      <circle cx="40" cy="11" r="2" fill="#1c1917"/>
-      <circle cx="40.6" cy="10.4" r="0.7" fill="white" opacity="0.8"/>
+      <circle cx="40" cy="11" r="2.2" fill="#1c1917"/>
+      <circle cx="40.8" cy="10.2" r="0.75" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Pearl Gourami (54×30) ─── oval, pearl spots, feeler fins ──────── -->
-    <g v-else-if="type === 'pearl-gourami'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         PEARL GOURAMI (54×30) — elongated oval, iridescent spots, feeler fins
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'pearl-gourami'" :style="{ filter: filterStyle }">
       <g class="fish-tail">
-        <path d="M13 15 L3 9 L11 14 L3 21 Z" fill="#60a5fa"/>
+        <path d="M 13 15 L 3 9 L 11 14 L 3 21 L 11 16 Z" fill="#c2410c"/>
       </g>
-      <!-- body -->
-      <ellipse cx="31" cy="15" rx="18" ry="9" fill="#7dd3fc"/>
-      <ellipse cx="32" cy="17" rx="12" ry="6" fill="#bfdbfe" opacity="0.35"/>
-      <!-- dark lateral band -->
-      <path d="M13 12 Q31 10 49 12 L49 14 Q31 12 13 14 Z" fill="#0369a1" opacity="0.35"/>
+      <!-- body — elongated oval, brownish-orange -->
+      <path
+        d="M 13 15 C 14 10 20 6 32 6 C 43 6 50 10 50 15 C 50 20 43 24 32 24 C 20 24 14 20 13 15 Z"
+        fill="#c27803"/>
+      <!-- belly highlight — lighter orange -->
+      <ellipse cx="33" cy="18" rx="13" ry="5.5" fill="#fde68a" opacity="0.3"/>
+      <!-- blue lateral stripe (characteristic marking) -->
+      <path d="M 14 12 C 24 11 38 11 50 12 L 50 14 C 38 13 24 13 14 14 Z" fill="#1e40af" opacity="0.4"/>
       <!-- dorsal fin -->
-      <path d="M22 6 L25 2 L35 5 L34 6 Z" fill="#2563eb" opacity="0.75"/>
-      <!-- feeler fins (elongated pelvic fins) -->
-      <path d="M34 24 L38 30" stroke="#7dd3fc" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M30 24 L32 29" stroke="#93c5fd" stroke-width="1" stroke-linecap="round" opacity="0.75"/>
-      <!-- pearl spots -->
-      <circle cx="22" cy="12" r="1.1" fill="#e0f2fe" opacity="0.8"/>
-      <circle cx="27" cy="10" r="1.1" fill="#e0f2fe" opacity="0.8"/>
-      <circle cx="33" cy="11" r="1.1" fill="#e0f2fe" opacity="0.8"/>
-      <circle cx="38" cy="13" r="1.1" fill="#e0f2fe" opacity="0.8"/>
-      <circle cx="29" cy="16" r="1"   fill="#e0f2fe" opacity="0.75"/>
-      <circle cx="35" cy="17" r="1"   fill="#e0f2fe" opacity="0.75"/>
-      <circle cx="24" cy="17" r="0.9" fill="#e0f2fe" opacity="0.7"/>
+      <path d="M 22 6 L 26 2 L 36 5 L 35 6 Z" fill="#92400e" opacity="0.82"/>
+      <!-- anal fin -->
+      <path d="M 18 24 C 20 28 28 28 32 24 Z" fill="#92400e" opacity="0.65"/>
+      <!-- feeler / pelvic fins (distinctive threadlike fins) -->
+      <path d="M 34 24 L 39 30" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M 30 24 L 33 29" stroke="#fbbf24" stroke-width="1.3" stroke-linecap="round" opacity="0.75"/>
+      <!-- pectoral fin -->
+      <path d="M 38 19 L 45 24 L 37 22 Z" fill="#c27803" opacity="0.7"/>
+      <!-- gill arch -->
+      <path d="M 44 8 Q 42 15 44 22" stroke="#92400e" stroke-width="1.1" fill="none" opacity="0.35"/>
+      <!-- pearl spots (iridescent white — scattered rows) -->
+      <circle cx="21" cy="11" r="1.1" fill="#fef9c3" opacity="0.82"/>
+      <circle cx="26" cy="9.5" r="1.1" fill="#fef9c3" opacity="0.8"/>
+      <circle cx="31" cy="9"   r="1.2" fill="#fef9c3" opacity="0.82"/>
+      <circle cx="37" cy="10" r="1.1" fill="#fef9c3" opacity="0.78"/>
+      <circle cx="42" cy="11" r="1.0" fill="#fef9c3" opacity="0.72"/>
+      <circle cx="24" cy="15" r="1.0" fill="#fef9c3" opacity="0.75"/>
+      <circle cx="29" cy="14" r="1.1" fill="#fef9c3" opacity="0.78"/>
+      <circle cx="35" cy="14" r="1.0" fill="#fef9c3" opacity="0.75"/>
+      <circle cx="40" cy="15" r="1.0" fill="#fef9c3" opacity="0.7"/>
+      <circle cx="22" cy="19" r="0.9" fill="#fef9c3" opacity="0.65"/>
+      <circle cx="28" cy="19" r="1.0" fill="#fef9c3" opacity="0.68"/>
+      <circle cx="34" cy="20" r="0.9" fill="#fef9c3" opacity="0.65"/>
       <!-- eye -->
-      <circle cx="44" cy="11" r="2" fill="#1c1917"/>
-      <circle cx="44.6" cy="10.4" r="0.7" fill="white" opacity="0.8"/>
+      <circle cx="46" cy="11" r="2.4" fill="#1c1917"/>
+      <circle cx="46.9" cy="10.1" r="0.8" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Tiger Barb (40×28) ─── orange oval, 4 black vertical bars ─────── -->
-    <g v-else-if="type === 'tiger-barb'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         TIGER BARB (40×28) — tall oval, 4 black vertical bars, orange-gold
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'tiger-barb'" :style="{ filter: filterStyle }">
       <g class="fish-tail fish-tail--fast">
-        <path d="M9 14 L1 8 L7 13 L1 20 Z" fill="#ea580c"/>
+        <path d="M 9 14 L 1 8 L 7 13 L 1 20 L 7 15 Z" fill="#ea580c"/>
       </g>
-      <!-- body (tall oval) -->
-      <ellipse cx="22" cy="14" rx="14" ry="10" fill="#fbbf24"/>
-      <!-- 4 black vertical bars -->
-      <path d="M22 4 L22 24" stroke="#1c1917" stroke-width="3"   opacity="0.7"/>
-      <path d="M27 4 L27 24" stroke="#1c1917" stroke-width="3"   opacity="0.7"/>
-      <path d="M16 5 L16 23" stroke="#1c1917" stroke-width="2.5" opacity="0.6"/>
-      <path d="M11 7 L11 21" stroke="#1c1917" stroke-width="2"   opacity="0.5"/>
-      <!-- dorsal fin (red-tipped) -->
-      <path d="M14 4 L18 0 L26 3 L27 4 Z" fill="#dc2626" opacity="0.9"/>
-      <!-- anal fin -->
-      <path d="M16 24 L19 28 L24 24 Z" fill="#dc2626" opacity="0.8"/>
+      <!-- body — tall compressed oval (taller than wide) -->
+      <path
+        d="M 9 14 C 10 8 15 4 22 4 C 29 4 35 8 35 14 C 35 20 29 24 22 24 C 15 24 10 20 9 14 Z"
+        fill="#fbbf24"/>
+      <!-- orange-red tone on upper back -->
+      <ellipse cx="23" cy="9" rx="10" ry="5" fill="#ea580c" opacity="0.28"/>
+      <!-- silver-white belly -->
+      <ellipse cx="23" cy="19" rx="9"  ry="4" fill="#fef3c7" opacity="0.45"/>
+      <!-- 4 black vertical bars (the signature marking) -->
+      <!-- bar 1 — at tail peduncle -->
+      <path d="M 9.5 7.5 Q 11 14 9.5 20.5 L 11.5 20.5 Q 13 14 11.5 7.5 Z" fill="#0f172a" opacity="0.72"/>
+      <!-- bar 2 — mid-rear -->
+      <path d="M 16 4.5 Q 18 14 16 23.5 L 18.5 23.5 Q 20.5 14 18.5 4.5 Z" fill="#0f172a" opacity="0.72"/>
+      <!-- bar 3 — mid-front (widest, most prominent) -->
+      <path d="M 23 4 Q 25 14 23 24 L 26 24 Q 28 14 26 4 Z" fill="#0f172a" opacity="0.72"/>
+      <!-- bar 4 — eye/gill bar -->
+      <path d="M 30 5 Q 32 14 30 23 L 32.5 23 Q 34.5 14 32.5 5 Z" fill="#0f172a" opacity="0.65"/>
+      <!-- dorsal fin — red-tipped -->
+      <path d="M 12 4 L 16 0 L 28 3 L 29 4 Z" fill="#dc2626" opacity="0.9"/>
+      <!-- anal fin — red -->
+      <path d="M 13 24 L 16 28 L 26 28 L 27 24 Z" fill="#dc2626" opacity="0.78"/>
+      <!-- pectoral fin -->
+      <path d="M 27 18 L 33 22 L 26 21 Z" fill="#ea580c" opacity="0.65"/>
       <!-- eye -->
-      <circle cx="32" cy="9" r="2" fill="#1c1917"/>
-      <circle cx="32.6" cy="8.4" r="0.7" fill="white" opacity="0.8"/>
+      <circle cx="32" cy="9" r="2.2" fill="#1c1917"/>
+      <circle cx="32.8" cy="8.2" r="0.75" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Jewel Cichlid (50×32) ─── red body, turquoise jewel spots ──────── -->
-    <g v-else-if="type === 'jewel-cichlid'">
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         JEWEL CICHLID (50×32) — stocky red oval, teal jewel spots, long dorsal
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else-if="type === 'jewel-cichlid'" :style="{ filter: filterStyle }">
       <g class="fish-tail">
-        <path d="M12 16 L2 10 L10 15 L2 22 Z" fill="#b91c1c"/>
+        <path d="M 12 16 L 2 9 L 10 15 L 2 23 L 10 17 Z" fill="#b91c1c"/>
       </g>
-      <!-- body -->
-      <ellipse cx="29" cy="16" rx="18" ry="10" fill="#ef4444"/>
-      <ellipse cx="30" cy="18" rx="12" ry="7" fill="#fca5a5" opacity="0.25"/>
-      <!-- continuous dorsal fin running along back -->
-      <path d="M13 6 L18 2 L36 2 L42 6 Z" fill="#b91c1c" opacity="0.85"/>
+      <!-- body — stocky compact oval -->
+      <path
+        d="M 12 16 C 13 9 19 5 29 5 C 39 5 46 10 46 16 C 46 22 39 27 29 27 C 19 27 13 23 12 16 Z"
+        fill="#ef4444"/>
+      <!-- orange-yellow belly -->
+      <ellipse cx="30" cy="21" rx="13" ry="5.5" fill="#fbbf24" opacity="0.35"/>
+      <!-- long continuous dorsal fin (span most of back) -->
+      <path d="M 13 5 L 18 1 L 38 1 L 43 5 Z" fill="#b91c1c" opacity="0.88"/>
       <!-- anal fin -->
-      <path d="M15 26 L20 30 L36 30 L40 26 Z" fill="#b91c1c" opacity="0.6"/>
-      <!-- turquoise jewel spots (iridescent) -->
-      <circle cx="22" cy="13" r="1.2" fill="#2dd4bf" opacity="0.9"/>
-      <circle cx="27" cy="11" r="1.2" fill="#2dd4bf" opacity="0.9"/>
-      <circle cx="33" cy="12" r="1.2" fill="#2dd4bf" opacity="0.9"/>
-      <circle cx="38" cy="14" r="1.2" fill="#2dd4bf" opacity="0.9"/>
-      <circle cx="25" cy="17" r="1"   fill="#2dd4bf" opacity="0.8"/>
-      <circle cx="32" cy="19" r="1"   fill="#2dd4bf" opacity="0.8"/>
-      <circle cx="38" cy="18" r="1"   fill="#2dd4bf" opacity="0.8"/>
-      <!-- gill line -->
-      <path d="M41 8 Q39 16 41 24" stroke="#b91c1c" stroke-width="1.2" fill="none" opacity="0.4"/>
+      <path d="M 14 27 L 20 31 L 38 31 L 41 27 Z" fill="#b91c1c" opacity="0.6"/>
+      <!-- pectoral fin -->
+      <path d="M 34 21 L 42 27 L 33 25 Z" fill="#ef4444" opacity="0.7"/>
+      <!-- gill arch -->
+      <path d="M 41 7 Q 39 16 41 25" stroke="#b91c1c" stroke-width="1.2" fill="none" opacity="0.38"/>
+      <!-- turquoise iridescent jewel spots (in rows) -->
+      <circle cx="21" cy="12" r="1.4" fill="#14b8a6" opacity="0.92"/>
+      <circle cx="26" cy="10" r="1.4" fill="#14b8a6" opacity="0.9"/>
+      <circle cx="31" cy="9.5" r="1.4" fill="#14b8a6" opacity="0.9"/>
+      <circle cx="37" cy="11" r="1.3" fill="#14b8a6" opacity="0.88"/>
+      <circle cx="23" cy="17" r="1.2" fill="#2dd4bf" opacity="0.85"/>
+      <circle cx="29" cy="16" r="1.3" fill="#2dd4bf" opacity="0.85"/>
+      <circle cx="35" cy="17" r="1.2" fill="#2dd4bf" opacity="0.85"/>
+      <circle cx="40" cy="18" r="1.1" fill="#2dd4bf" opacity="0.8"/>
+      <circle cx="20" cy="21" r="1.0" fill="#5eead4" opacity="0.7"/>
+      <circle cx="27" cy="22" r="1.1" fill="#5eead4" opacity="0.72"/>
+      <circle cx="33" cy="22" r="1.0" fill="#5eead4" opacity="0.7"/>
       <!-- eye -->
-      <circle cx="43" cy="11" r="2.2" fill="#1c1917"/>
-      <circle cx="43.7" cy="10.3" r="0.7" fill="white" opacity="0.8"/>
+      <circle cx="43" cy="11" r="2.5" fill="#1c1917"/>
+      <circle cx="43.9" cy="10.1" r="0.85" fill="white" opacity="0.82"/>
     </g>
 
-    <!-- ── Fallback ──────────────────────────────────────────────────────── -->
-    <g v-else>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         FALLBACK — generic fish
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <g v-else :style="{ filter: filterStyle }">
       <g class="fish-tail">
-        <path d="M14 14 L2 8 L11 14 L2 20 Z" fill="#FF6B35"/>
+        <path d="M 14 14 L 2 8 L 11 13 L 2 20 Z" fill="#FF6B35"/>
       </g>
-      <ellipse cx="29" cy="14" rx="16" ry="10" fill="#FF8C00"/>
-      <path d="M22 4 L26 0 L32 4 Z" fill="#FF6B35"/>
-      <circle cx="39" cy="10" r="2" fill="#1c1917"/>
-      <circle cx="39.6" cy="9.4" r="0.7" fill="white" opacity="0.8"/>
+      <path d="M 14 14 C 15 8 20 5 28 5 C 36 5 42 9 42 14 C 42 19 36 23 28 23 C 20 23 15 20 14 14 Z" fill="#FF8C00"/>
+      <path d="M 22 5 L 26 1 L 32 5 Z" fill="#FF6B35"/>
+      <circle cx="37" cy="10" r="2.2" fill="#1c1917"/>
+      <circle cx="37.8" cy="9.2" r="0.75" fill="white" opacity="0.82"/>
     </g>
 
   </svg>
@@ -289,12 +492,12 @@ const viewBox = computed(() => VIEWBOXES[props.type] || VIEWBOXES.goldfish)
   animation: tailSway 0.85s ease-in-out infinite alternate;
 }
 
-.fish-tail--fast     { animation-duration: 0.55s; }
-.fish-tail--flowing  { animation-duration: 1.1s; }
+.fish-tail--fast     { animation-duration: 0.5s; }
+.fish-tail--flowing  { animation-duration: 1.15s; }
 
 @keyframes tailSway {
-  from { transform: rotate(-9deg); }
-  to   { transform: rotate(9deg); }
+  from { transform: rotate(-8deg); }
+  to   { transform: rotate(8deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {

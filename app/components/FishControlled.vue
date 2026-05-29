@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { GeneticsData } from '~/utils/game-config'
+
 const props = defineProps<{
   fishId: number;
   type: string;
@@ -8,15 +10,20 @@ const props = defineProps<{
   boredom: number;
   careStreak?: number;
   isBeingFed?: boolean;
+  sizeMultiplier?: number;
+  genetics?: GeneticsData;
+  generation?: number;
 }>();
 
 const emit = defineEmits<{ (e: "play", fishId: number): void }>();
 
-const size =
+const baseSize =
   FISH_CONFIG.FISH_SIZES[props.type as keyof typeof FISH_CONFIG.FISH_SIZES] ||
   FISH_CONFIG.FISH_SIZES.goldfish;
 
-const barWidth = Math.max(24, Math.min(size.width, 52));
+const scaledWidth  = computed(() => Math.round(baseSize.width  * (props.sizeMultiplier ?? 1.0)));
+const scaledHeight = computed(() => Math.round(baseSize.height * (props.sizeMultiplier ?? 1.0)));
+const barWidth     = computed(() => Math.max(24, Math.min(scaledWidth.value, 52)));
 
 const healthBarClass = computed(() =>
   props.health >= HEALTH_HIGH_THRESHOLD ? "bg-emerald-400" : props.health >= HEALTH_LOW_THRESHOLD ? "bg-orange-400" : "bg-red-500"
@@ -47,22 +54,24 @@ const floatDuration = `${2.5 + (props.fishId % 5) * 0.2}s`;
         class="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping scale-150" />
       <FishSvg
         :type="props.type"
-        :width="size.width"
-        :height="size.height"
+        :width="scaledWidth"
+        :height="scaledHeight"
+        :fish-id="props.fishId"
+        :genetics="props.genetics"
+        :generation="props.generation"
         class="drop-shadow-lg" />
 
       <!-- Always-visible hunger strip (thin bar just below fish) -->
       <div
         class="absolute top-full left-1/2 -translate-x-1/2 mt-0.5 pointer-events-none rounded-full overflow-hidden"
-        :style="{ width: Math.round(size.width * 0.65) + 'px', height: '2px', background: 'rgba(0,0,0,0.3)' }">
+        :style="{ width: Math.round(scaledWidth * 0.65) + 'px', height: '2px', background: 'rgba(0,0,0,0.3)' }">
         <div class="h-full rounded-full transition-[width] duration-700" :class="hungerBarClass" :style="{ width: hunger + '%' }" />
       </div>
 
       <!-- Hover-only full stat panel -->
       <div
         class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex flex-col gap-[3px] pointer-events-none px-1.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-        style="background: rgba(0,0,0,0.55);"
-        :style="{ width: (barWidth + 10) + 'px' }">
+        :style="{ width: (barWidth + 10) + 'px', background: 'rgba(0,0,0,0.55)' }">
         <div class="flex items-center gap-1">
           <span class="text-[8px] leading-none w-3 text-center shrink-0">❤️</span>
           <div class="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">

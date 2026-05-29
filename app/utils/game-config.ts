@@ -700,3 +700,34 @@ export interface ListedFish {
   listedAt: number;
   sellsByMs: number;   // listedAt + LISTING_DURATION_MS
 }
+
+// ── Fish life cycle ────────────────────────────────────────────────────────────
+export const FISH_LIFESPAN_BASE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export const FISH_LIFESPAN_BY_SPECIES: Record<string, number> = {
+  guppy:           Math.round(FISH_LIFESPAN_BASE_MS * 0.70), // ~5 days
+  neon:            Math.round(FISH_LIFESPAN_BASE_MS * 0.70),
+  "cherry-barb":   Math.round(FISH_LIFESPAN_BASE_MS * 0.80), // ~5.6 days
+  "tiger-barb":    Math.round(FISH_LIFESPAN_BASE_MS * 0.85),
+  goldfish:        Math.round(FISH_LIFESPAN_BASE_MS * 1.00), // 7 days
+  tropical:        Math.round(FISH_LIFESPAN_BASE_MS * 1.00),
+  betta:           Math.round(FISH_LIFESPAN_BASE_MS * 1.10), // ~7.7 days
+  "pearl-gourami": Math.round(FISH_LIFESPAN_BASE_MS * 1.15),
+  angelfish:       Math.round(FISH_LIFESPAN_BASE_MS * 1.20), // ~8.4 days
+  "jewel-cichlid": Math.round(FISH_LIFESPAN_BASE_MS * 1.30), // ~9 days
+  shark:           Math.round(FISH_LIFESPAN_BASE_MS * 1.50), // ~10.5 days
+};
+
+// ageRatio thresholds (0–1 fraction of lifespan)
+export const LIFE_STAGE_JUVENILE_END = 0.20; // 0 → 20 %: juvenile
+export const LIFE_STAGE_ADULT_END    = 0.70; // 20 % → 70 %: adult — 70 %→100 %: senior
+
+export type LifeStage = "juvenile" | "adult" | "senior";
+
+export const LIFE_STAGE_INFO: Record<LifeStage, { label: string; icon: string }> = {
+  juvenile: { label: "Juvenile", icon: "🐣" },
+  adult:    { label: "Adult",    icon: "⭐" },
+  senior:   { label: "Senior",   icon: "🌿" },
+};
+
+export const ELDER_BREED_MORTALITY_BONUS = 0.15; // +15 % mortality when a senior parent breeds

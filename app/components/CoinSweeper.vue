@@ -12,6 +12,9 @@ const SPEED = [0, 5, 9, 15];
 const show = computed(() => game.coinCollector.level > 0);
 const speed = computed(() => SPEED[game.coinCollector.level] ?? 0);
 
+// Shared with AquariumDisplay so it can do proximity vacuum collection
+const collectorX = inject<Ref<number>>('collectorX', ref(50));
+
 let frameHandle: number | null = null;
 let lastTs = 0;
 
@@ -22,6 +25,7 @@ function loop(ts: number) {
     xPct.value += speed.value * (facingRight.value ? 1 : -1) * dt;
     if (xPct.value >= 93) { xPct.value = 93; facingRight.value = false; }
     else if (xPct.value <= 4) { xPct.value = 4; facingRight.value = true; }
+    collectorX.value = xPct.value;
   }
   frameHandle = requestAnimationFrame(loop);
 }

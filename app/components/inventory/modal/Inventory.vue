@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useIntervalFn } from "@vueuse/core";
+import { fishAgeRatio, fishLifespan, fishLifeStage, fishSizeMultiplier } from "~/utils/economy";
 
 const emit = defineEmits<{ (e: "go-to-shop"): void }>();
 
@@ -63,7 +64,7 @@ const sorted = computed(() =>
     else if (sortKey.value === "health") v = a.health - b.health;
     else if (sortKey.value === "boredom") v = a.boredom - b.boredom;
     else if (sortKey.value === "type") v = a.type.localeCompare(b.type);
-    else v = a.id - b.id;
+    else v = (a.bornAt ?? a.id) - (b.bornAt ?? b.id);
     return sortDir.value === "asc" ? v : -v;
   })
 );
@@ -76,10 +77,48 @@ function fishName(type: string): string {
 const sortOptions = [
   { id: "hunger",  label: "Hunger"  },
   { id: "health",  label: "Health"  },
-  { id: "boredom", label: "Mood" },
+  { id: "boredom", label: "Mood"    },
   { id: "type",    label: "Species" },
   { id: "id",      label: "Age"     },
 ];
+
+// ── Life cycle helpers ─────────────────────────────────────────────────────────
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function getFishBornAt(f: { bornAt?: number; type: string; genetics?: { healthMod?: number; mutation?: string } }): number {
+  return f.bornAt ?? (Date.now() - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END));
+}
+
+function getFishAgeRatio(f: { bornAt?: number; type: string; genetics?: { healthMod?: number; mutation?: string } }): number {
+  return fishAgeRatio(getFishBornAt(f), f.type, f.genetics);
+}
+
+function getFishStage(f: { bornAt?: number; type: string; genetics?: { healthMod?: number; mutation?: string } }) {
+  return fishLifeStage(getFishAgeRatio(f));
+}
+
+function ageTimeLeft(f: { bornAt?: number; type: string; genetics?: { healthMod?: number; mutation?: string } }): string {
+  const lifespan = fishLifespan(f.type, f.genetics);
+  const msLeft = Math.max(0, lifespan - (now.value - getFishBornAt(f)));
+  if (msLeft === 0) return "0h";
+  const days = msLeft / MS_PER_DAY;
+  if (days < 1) return `${Math.ceil(days * 24)}h`;
+  return `${days.toFixed(1)}d`;
+}
+
+function stageColor(f: { bornAt?: number; type: string; genetics?: { healthMod?: number; mutation?: string } }): string {
+  const stage = getFishStage(f);
+  if (stage === "juvenile") return "text-cyan-400";
+  if (stage === "adult")    return "text-emerald-400";
+  return "text-amber-400";
+}
+
+function ageBarColor(ageRatio: number): string {
+  if (ageRatio < LIFE_STAGE_JUVENILE_END) return "bg-cyan-400";
+  if (ageRatio < LIFE_STAGE_ADULT_END)    return "bg-emerald-400";
+  if (ageRatio < 0.85)                    return "bg-amber-400";
+  return "bg-red-400";
+}
 </script>
 
 <template>
@@ -174,7 +213,7 @@ const sortOptions = [
           <div class="flex items-center gap-2 pr-5">
             <div class="w-9 h-7 flex items-center justify-center rounded-lg shrink-0"
               style="background: rgba(255,255,255,0.06);">
-              <FishSvg :type="f.type" v-bind="fishPreviewSize(f.type)" class="drop-shadow-sm" />
+              <FishSvg :type="f.type" v-bind="fishPreviewSize(f.type)" :fish-id="f.id" :genetics="f.genetics" :generation="f.generation" class="drop-shadow-sm" />
             </div>
             <div class="min-w-0">
               <p class="text-xs font-semibold text-white truncate leading-tight">
@@ -186,6 +225,7 @@ const sortOptions = [
                 <span v-if="f.personality" :title="PERSONALITY_PROFILES[f.personality as PersonalityType]?.label">
                   · {{ PERSONALITY_PROFILES[f.personality as PersonalityType]?.icon }}
                 </span>
+                <span :class="stageColor(f)" class="ml-0.5">· {{ LIFE_STAGE_INFO[getFishStage(f)].icon }}</span>
               </p>
             </div>
           </div>
@@ -219,9 +259,22 @@ const sortOptions = [
               </div>
               <span class="text-xs text-white/30 tabular-nums w-5 text-right">{{ Math.round(100 - f.boredom) }}</span>
             </div>
+            <!-- Age bar -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs w-3 text-center leading-none">{{ LIFE_STAGE_INFO[getFishStage(f)].icon }}</span>
+              <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.08);">
+                <div class="h-full rounded-full transition-all duration-1000"
+                  :class="ageBarColor(getFishAgeRatio(f))"
+                  :style="{ width: (getFishAgeRatio(f) * 100) + '%' }" />
+              </div>
+              <span class="text-xs tabular-nums w-5 text-right"
+                :class="getFishAgeRatio(f) >= LIFE_STAGE_ADULT_END ? 'text-amber-400/70' : 'text-white/30'">
+                {{ ageTimeLeft(f) }}
+              </span>
+            </div>
           </div>
 
-          <!-- Listed state: countdown + cancel -->
+          <!-- Listed state: countdown + cancel + sell now -->
           <template v-if="game.isListed(f.id)">
             <div class="listing-row">
               <div class="listing-info">
@@ -230,6 +283,15 @@ const sortOptions = [
               </div>
               <button class="listing-cancel" @click="game.cancelListing(f.id)">✕ Cancel</button>
             </div>
+            <UButton
+              color="warning"
+              variant="soft"
+              size="xs"
+              class="w-full sell-now-btn"
+              title="Skip the wait — sell instantly at 60% of listing price"
+              @click="game.sellFishNow(f.id)">
+              Sell now · {{ Math.round((game.getListingFor(f.id)?.price ?? game.fishMarketValue(f)) * 0.6).toLocaleString() }} 🪙
+            </UButton>
           </template>
 
           <!-- Normal state: feed + list buttons -->
@@ -242,12 +304,15 @@ const sortOptions = [
                 label="Feed"
                 class="flex-1"
                 @click="game.feedFish(f.id, FEED_AMOUNT)" />
-              <button
-                class="list-btn"
-                :title="`List for ${game.fishMarketValue(f).toLocaleString()} coins`"
+              <UButton
+                color="neutral"
+                variant="soft"
+                size="sm"
+                :title="`List on market for ${game.fishMarketValue(f)} 🪙 (20 min)`"
                 @click="game.listFishForSale(f.id)">
-                🏷
-              </button>
+                <span>🏷</span>
+                <span class="list-price">{{ game.fishMarketValue(f).toLocaleString() }}</span>
+              </UButton>
             </div>
           </template>
         </div>
@@ -282,21 +347,19 @@ const sortOptions = [
   line-height: 1;
 }
 
-.list-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
+.list-price {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(251,191,36,0.75);
+  font-variant-numeric: tabular-nums;
 }
-.list-btn:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.35); }
+
+.sell-now-btn {
+  font-size: 10px !important;
+  opacity: 0.72;
+  letter-spacing: 0.01em;
+}
+.sell-now-btn:hover { opacity: 1; }
 
 .listing-row {
   display: flex;

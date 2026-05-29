@@ -93,18 +93,22 @@ function mutationInfo(mutation?: string) {
       <div v-if="activeCategory === 'fish'">
         <!-- Sub-toggle: New / Market -->
         <div class="flex gap-2 mb-4">
-          <button
-            class="shop-mode-btn"
-            :class="activeShopMode === 'new' ? 'shop-mode-btn--active' : ''"
+          <UButton
+            size="sm"
+            :color="activeShopMode === 'new' ? 'primary' : 'neutral'"
+            :variant="activeShopMode === 'new' ? 'soft' : 'ghost'"
+            class="rounded-full"
             @click="activeShopMode = 'new'">
             🐠 New Fish
-          </button>
-          <button
-            class="shop-mode-btn"
-            :class="activeShopMode === 'market' ? 'shop-mode-btn--active' : ''"
+          </UButton>
+          <UButton
+            size="sm"
+            :color="activeShopMode === 'market' ? 'primary' : 'neutral'"
+            :variant="activeShopMode === 'market' ? 'soft' : 'ghost'"
+            class="rounded-full"
             @click="activeShopMode = 'market'">
             🏷 Market
-          </button>
+          </UButton>
         </div>
 
         <!-- Tank full warning -->
@@ -167,7 +171,7 @@ function mutationInfo(mutation?: string) {
               <div class="flex items-center gap-2">
                 <div class="w-10 h-8 flex items-center justify-center rounded-lg shrink-0"
                   style="background: rgba(255,255,255,0.06);">
-                  <FishSvg :type="mf.type" v-bind="fishPreviewSize(mf.type)" class="drop-shadow-sm" />
+                  <FishSvg :type="mf.type" v-bind="fishPreviewSize(mf.type)" :genetics="mf.genetics" :generation="mf.generation" class="drop-shadow-sm" />
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="text-xs font-semibold text-white truncate">{{ mf.name }}</p>
@@ -482,23 +486,6 @@ function mutationInfo(mutation?: string) {
 </template>
 
 <style scoped>
-.shop-mode-btn {
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.45);
-  transition: all 0.15s;
-}
-.shop-mode-btn:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.07); }
-.shop-mode-btn--active {
-  background: rgba(34,211,238,0.12);
-  border-color: rgba(34,211,238,0.35);
-  color: #67e8f9;
-}
 
 .market-card {
   background: rgba(255,255,255,0.04);

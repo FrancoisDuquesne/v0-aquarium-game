@@ -43,6 +43,35 @@ export function calculateMaintenance(
   return Math.ceil(power + water + food);
 }
 
+// ── Fish life cycle ──────────────────────────────────────────────────────────
+
+export function fishLifespan(type: string, genetics?: { healthMod?: number; mutation?: string }): number {
+  const base = FISH_LIFESPAN_BY_SPECIES[type] ?? FISH_LIFESPAN_BASE_MS;
+  let mult = 1.0;
+  if (genetics?.mutation === "hardy")  mult *= 1.25;
+  if (genetics?.mutation === "sickly") mult *= 0.75;
+  if (genetics?.healthMod != null) mult *= 0.85 + genetics.healthMod * 0.15;
+  return Math.round(base * mult);
+}
+
+export function fishAgeRatio(bornAt: number, type: string, genetics?: { healthMod?: number; mutation?: string }): number {
+  return Math.min(1.0, (Date.now() - bornAt) / fishLifespan(type, genetics));
+}
+
+export function fishLifeStage(ageRatio: number): import("~/utils/game-config").LifeStage {
+  if (ageRatio < LIFE_STAGE_JUVENILE_END) return "juvenile";
+  if (ageRatio < LIFE_STAGE_ADULT_END)    return "adult";
+  return "senior";
+}
+
+export function fishSizeMultiplier(ageRatio: number): number {
+  if (ageRatio < LIFE_STAGE_JUVENILE_END) {
+    return 0.5 + (ageRatio / LIFE_STAGE_JUVENILE_END) * 0.5;
+  }
+  if (ageRatio < LIFE_STAGE_ADULT_END) return 1.0;
+  return 1.0 + ((ageRatio - LIFE_STAGE_ADULT_END) / (1.0 - LIFE_STAGE_ADULT_END)) * 0.12;
+}
+
 // ── Fish market valuation ────────────────────────────────────────────────────
 
 const MUTATION_MARKET_MULT: Record<string, number> = {
@@ -55,13 +84,29 @@ export function fishMarketValue(fish: {
   generation?: number;
   careStreak?: number;
   genetics?: { coinMod?: number; healthMod?: number; mutation?: string };
+  bornAt?: number;
 }): number {
   const base = FISH_SHOP_ITEMS.find(i => i.type === fish.type)?.cost ?? 50;
-  const genBonus  = 1 + (fish.generation ?? 0) * 0.20;
-  const mutMult   = MUTATION_MARKET_MULT[fish.genetics?.mutation ?? ""] ?? 1.0;
-  const genetics  = (fish.genetics?.coinMod ?? 1) * (fish.genetics?.healthMod ?? 1);
-  const streak    = 1 + (fish.careStreak ?? 0) * 0.04;
-  return Math.round(base * genBonus * mutMult * genetics * streak);
+  const genBonus = 1 + (fish.generation ?? 0) * 0.20;
+  const mutMult  = MUTATION_MARKET_MULT[fish.genetics?.mutation ?? ""] ?? 1.0;
+  const genetics = (fish.genetics?.coinMod ?? 1) * (fish.genetics?.healthMod ?? 1);
+  const streak   = 1 + (fish.careStreak ?? 0) * 0.04;
+
+  let ageMult = 1.0;
+  if (fish.bornAt != null) {
+    const r = fishAgeRatio(fish.bornAt, fish.type, fish.genetics);
+    if (r < LIFE_STAGE_JUVENILE_END) {
+      ageMult = 0.6 + (r / LIFE_STAGE_JUVENILE_END) * 0.5;              // 0.6 → 1.1
+    } else if (r < LIFE_STAGE_ADULT_END) {
+      const t = (r - LIFE_STAGE_JUVENILE_END) / (LIFE_STAGE_ADULT_END - LIFE_STAGE_JUVENILE_END);
+      ageMult = 1.1 + t * 0.1;                                           // 1.1 → 1.2
+    } else {
+      const t = (r - LIFE_STAGE_ADULT_END) / (1.0 - LIFE_STAGE_ADULT_END);
+      ageMult = 1.2 - t * 0.6;                                           // 1.2 → 0.6
+    }
+  }
+
+  return Math.round(base * genBonus * mutMult * genetics * streak * ageMult);
 }
 
 // Mulberry32 seeded PRNG — returns a function producing [0, 1) floats

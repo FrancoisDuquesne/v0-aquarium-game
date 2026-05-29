@@ -33,7 +33,7 @@ import {
   type MarketFish,
   type ListedFish,
 } from "~/utils/game-config";
-import { fishMarketValue, generateMarketPool } from "~/utils/economy";
+import { fishMarketValue, generateMarketPool, fishAgeRatio, fishLifespan, fishLifeStage } from "~/utils/economy";
 
 type ToolType = "flake" | "spoon";
 
@@ -54,6 +54,7 @@ interface FishData {
   generation?: number;
   parentIds?: [number, number];
   sicklyWatchUntil?: number; // For sickly mutation mortality tracking
+  bornAt?: number;           // Epoch ms when the fish was "born" / purchased
 }
 
 interface DailyMission {
@@ -260,6 +261,10 @@ function normalizeFish(entry: Partial<FishData>): FishData {
     generation: typeof entry.generation === "number" ? entry.generation : undefined,
     parentIds: Array.isArray(entry.parentIds) ? entry.parentIds as [number, number] : undefined,
     sicklyWatchUntil: typeof entry.sicklyWatchUntil === "number" ? entry.sicklyWatchUntil : undefined,
+    // Default: place fish at start of adulthood so existing saves don't start as tiny juveniles
+    bornAt: typeof entry.bornAt === "number"
+      ? entry.bornAt
+      : Date.now() - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END),
   };
 }
 
@@ -818,6 +823,12 @@ export const useGameStore = defineStore("game", () => {
     if (fish1.hunger < MIN_PARENT_HUNGER || fish2.hunger < MIN_PARENT_HUNGER) {
       return { valid: false, reason: `Both fish need ${MIN_PARENT_HUNGER}+ hunger` };
     }
+    const defaultBornAt = Date.now() - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END);
+    const age1 = fishAgeRatio(fish1.bornAt ?? defaultBornAt, fish1.type, fish1.genetics);
+    const age2 = fishAgeRatio(fish2.bornAt ?? defaultBornAt, fish2.type, fish2.genetics);
+    if (age1 < LIFE_STAGE_JUVENILE_END || age2 < LIFE_STAGE_JUVENILE_END) {
+      return { valid: false, reason: "Both fish must be adult (not juvenile)" };
+    }
     if (fish.value.length >= tankCapacity.value && !incubator.queuedBaby) {
       return { valid: false, reason: "Tank is full" };
     }
@@ -889,6 +900,13 @@ export const useGameStore = defineStore("game", () => {
     if (breeding.babyGenetics.mutation === "sickly") {
       mortalityChance += 0.15;
     }
+    // Senior parents have reduced breeding viability
+    const defaultBornAt = Date.now() - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END);
+    const p1Age = parent1 ? fishAgeRatio(parent1.bornAt ?? defaultBornAt, parent1.type, parent1.genetics) : 0.4;
+    const p2Age = parent2 ? fishAgeRatio(parent2.bornAt ?? defaultBornAt, parent2.type, parent2.genetics) : 0.4;
+    if (fishLifeStage(p1Age) === "senior" || fishLifeStage(p2Age) === "senior") {
+      mortalityChance += ELDER_BREED_MORTALITY_BONUS;
+    }
 
     const died = Math.random() < mortalityChance;
 
@@ -917,9 +935,10 @@ export const useGameStore = defineStore("game", () => {
       genetics: breeding.babyGenetics,
       generation: maxGen + 1,
       parentIds: [breeding.parent1Id, breeding.parent2Id],
-      sicklyWatchUntil: breeding.babyGenetics.mutation === "sickly" 
-        ? Date.now() + SICKLY_WATCH_DURATION_MS 
+      sicklyWatchUntil: breeding.babyGenetics.mutation === "sickly"
+        ? Date.now() + SICKLY_WATCH_DURATION_MS
         : undefined,
+      bornAt: Date.now(),
     });
 
     // Check if tank has space
@@ -958,9 +977,10 @@ export const useGameStore = defineStore("game", () => {
       genetics: queued.genetics,
       generation: queued.generation,
       parentIds: queued.parentIds,
-      sicklyWatchUntil: queued.genetics.mutation === "sickly" 
-        ? Date.now() + SICKLY_WATCH_DURATION_MS 
+      sicklyWatchUntil: queued.genetics.mutation === "sickly"
+        ? Date.now() + SICKLY_WATCH_DURATION_MS
         : undefined,
+      bornAt: Date.now(),
     });
 
     fish.value.push(babyFish);
@@ -1080,6 +1100,7 @@ export const useGameStore = defineStore("game", () => {
         speed: Math.random() * 2 + 1,
         generation: entry.generation,
         genetics: { ...entry.genetics },
+        bornAt: Date.now(),
       })
     );
     market.pool = market.pool.filter(m => m.uid !== uid);
@@ -1103,6 +1124,17 @@ export const useGameStore = defineStore("game", () => {
   function cancelListing(fishId: number) {
     listedFish.value = listedFish.value.filter(l => l.fishId !== fishId);
     save();
+  }
+
+  // 60 % of market value, instant — penalises impatience
+  function sellFishNow(fishId: number) {
+    if (isListed(fishId)) return;
+    const f = fish.value.find(f => f.id === fishId);
+    if (!f) return;
+    const price = Math.round(fishMarketValue(f) * 0.6);
+    coins.value += price;
+    totalCoinsEarned.value = (totalCoinsEarned.value ?? 0) + price;
+    removeFish(fishId);
   }
 
   function checkListings() {
@@ -1137,6 +1169,7 @@ export const useGameStore = defineStore("game", () => {
         y: Math.random() * 60 + 20,
         hunger: 100,
         speed: Math.random() * 2 + 1,
+        bornAt: Date.now(),
       })
     );
     checkAchievements();
@@ -1208,7 +1241,8 @@ export const useGameStore = defineStore("game", () => {
   function spawnCoinDrop(
     origin: Pick<FishData, "id" | "x" | "y">,
     amount: number,
-    source: CoinDrop["source"]
+    source: CoinDrop["source"],
+    qualityFactor = 1.0
   ) {
     const now = Date.now();
     pruneCoinDrops(now);
@@ -1231,7 +1265,7 @@ export const useGameStore = defineStore("game", () => {
         DROP_FALL_DURATION_MIN + fallDistance * DROP_FALL_DURATION_PER_PCT
       ),
       fishId: typeof origin.id === "number" ? origin.id : null,
-      type: dropTypeFor(adjusted),
+      type: dropTypeFor(adjusted * qualityFactor),
       createdAt: now,
       expiresAt: now + dropLifetimeMs.value,
       source,
@@ -1244,17 +1278,18 @@ export const useGameStore = defineStore("game", () => {
   function scheduleCoinDrop(
     origin: Pick<FishData, "id" | "x" | "y">,
     amount: number,
-    source: CoinDrop["source"]
+    source: CoinDrop["source"],
+    qualityFactor = 1.0
   ) {
     if (!process.client) {
-      spawnCoinDrop(origin, amount, source);
+      spawnCoinDrop(origin, amount, source, qualityFactor);
       return;
     }
     const jitterFactor = Math.random();
     const delay = Math.round(jitterFactor * OFFLINE_INTERVAL_MS);
     const timer = window.setTimeout(() => {
       dropTimers.delete(timer);
-      spawnCoinDrop(origin, amount, source);
+      spawnCoinDrop(origin, amount, source, qualityFactor);
     }, delay);
     dropTimers.add(timer);
   }
@@ -1426,9 +1461,11 @@ export const useGameStore = defineStore("game", () => {
     const dropsToSpawn: {
       origin: Pick<FishData, "id" | "x" | "y">;
       amount: number;
+      qualityFactor: number;
     }[] = [];
     const updatedFish: FishData[] = [];
 
+    const defaultBornAt = now - Math.round(FISH_LIFESPAN_BASE_MS * LIFE_STAGE_JUVENILE_END);
     const friendCountCapped = Math.min(2, fish.value.length - 1);
 
     fish.value.forEach((entry) => {
@@ -1477,7 +1514,20 @@ export const useGameStore = defineStore("game", () => {
       const payout = Math.floor(progress);
       progress -= payout;
       if (payout > 0) {
-        dropsToSpawn.push({ origin, amount: payout });
+        const ageRatio  = fishAgeRatio(entry.bornAt ?? defaultBornAt, entry.type, entry.genetics);
+        const lifeStage = fishLifeStage(ageRatio);
+        // Age scales the economic value — adults are genuinely worth more
+        const stageMult = lifeStage === "juvenile" ? 1.0 : lifeStage === "adult" ? 5.0 : 2.5;
+        // Mood + health boost the visual tier (on top of the scaled value)
+        const moodMult = nextHunger >= HAPPY_THRESHOLD ? 2.0 : 1.0;
+        const hpMult   = nextHealth >= HEALTH_HIGH_THRESHOLD ? 1.5
+                       : nextHealth <  HEALTH_LOW_THRESHOLD  ? 0.5
+                       : 1.0;
+        dropsToSpawn.push({
+          origin,
+          amount: Math.max(1, Math.round(payout * stageMult)),
+          qualityFactor: moodMult * hpMult,
+        });
       }
 
       updatedFish.push({
@@ -1491,16 +1541,22 @@ export const useGameStore = defineStore("game", () => {
     });
 
     const dying = updatedFish.filter((entry) => entry.health <= 0);
-    if (dying.length) {
+    const ageDying = updatedFish.filter((entry) => {
+      if (entry.health <= 0) return false;
+      return (now - (entry.bornAt ?? defaultBornAt)) >= fishLifespan(entry.type, entry.genetics);
+    });
+    const allDying = [...dying, ...ageDying];
+    if (allDying.length) {
       pendingDeaths.value = [
         ...pendingDeaths.value,
-        ...dying.map((e) => ({ id: e.id, name: e.name, type: e.type })),
+        ...allDying.map((e) => ({ id: e.id, name: e.name, type: e.type })),
       ];
     }
-    fish.value = updatedFish.filter((entry) => entry.health > 0);
+    const dyingIds = new Set(allDying.map((e) => e.id));
+    fish.value = updatedFish.filter((entry) => !dyingIds.has(entry.id));
 
-    dropsToSpawn.forEach(({ origin, amount }) =>
-      scheduleCoinDrop(origin, amount, "baseline")
+    dropsToSpawn.forEach(({ origin, amount, qualityFactor }) =>
+      scheduleCoinDrop(origin, amount, "baseline", qualityFactor)
     );
 
     if (autoFeeder.owned && autoFeeder.active) {
@@ -1605,7 +1661,6 @@ export const useGameStore = defineStore("game", () => {
       }
     }
 
-    maybeAutoCollect(now);
     save();
   }
 
@@ -1655,6 +1710,7 @@ export const useGameStore = defineStore("game", () => {
     feedFish,
     playWithFish,
     removeFish,
+    sellFishNow,
     buyFish,
     buySpoon,
     buyAutoFeeder,

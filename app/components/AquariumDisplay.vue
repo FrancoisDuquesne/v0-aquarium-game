@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { fishSizeMultiplier, fishAgeRatio } from "~/utils/economy";
+
 const game = useGameStore();
 
 const container = ref<HTMLElement | null>(null);
@@ -32,13 +34,21 @@ const coinPopups = ref<{ id: number; value: number; x: number; y: number }[]>([]
 const deathAnims = ref<{ id: number; type: string; x: number; y: number }[]>([]);
 const screenFlash = ref(false);
 
-const { playFeedSound, playCoinSound } = useGameAudio();
+const { playFeedSound } = useGameAudio();
 
 const activeFishIds = new Set<number>();
 const fishHunger = new Map<number, number>();
 const fishTypes = new Map<number, string>();
 const flakesToRemove: number[] = [];
 let frameHandle: number | null = null;
+
+// Vacuum system — shared with CoinSweeper via provide/inject
+const collectorX = ref(50);
+provide('collectorX', collectorX);
+const vacuumedDropIds = new Set<number>();
+const vacuumedDropPositions = new Map<number, number>();
+// Vacuum radius (% of tank width) by collector level
+const VACUUM_RADII = [0, 6, 10, 14];
 
 const backgroundImage = computed(() => game.background);
 
@@ -343,6 +353,25 @@ function tick(ts: number) {
       setNodeTransform(node, pos.x, pos.y, face as 1 | -1);
     }
   });
+
+  // Vacuum: sweeper sucks up coins it passes over
+  const vacLevel = game.coinCollector.level;
+  if (vacLevel > 0 && game.coinDrops.length > 0) {
+    const radius = VACUUM_RADII[vacLevel] ?? 0;
+    const cx = collectorX.value;
+    const toVacuum: number[] = [];
+    for (const drop of game.coinDrops as CoinDropView[]) {
+      if (vacuumedDropIds.has(drop.id)) continue;
+      const anchor = dropAnchors.get(drop.id);
+      if (!anchor) continue;
+      if (Math.abs(anchor.left - cx) <= radius) {
+        toVacuum.push(drop.id);
+      }
+    }
+    for (const id of toVacuum) {
+      vacuumCollectDrop(id);
+    }
+  }
 }
 
 function setFishRef(id: number) {
@@ -469,13 +498,75 @@ function collectDrop(id: number) {
     setTimeout(() => {
       coinPopups.value = coinPopups.value.filter((p) => p.id !== id);
     }, 900);
-    playCoinSound(drop.type as any);
     if (drop.type === "crown" || drop.type === "chest") {
       screenFlash.value = true;
       setTimeout(() => { screenFlash.value = false; }, 350);
     }
   }
   game.collectCoinDrop(id);
+}
+
+function vacuumCollectDrop(id: number) {
+  const drop = (game.coinDrops as CoinDropView[]).find((d) => d.id === id);
+  if (!drop) return;
+  vacuumedDropIds.add(id);
+  vacuumedDropPositions.set(id, collectorX.value);
+  coinPopups.value.push({ id: drop.id, value: drop.value, x: collectorX.value, y: 88 });
+  setTimeout(() => {
+    coinPopups.value = coinPopups.value.filter((p) => p.id !== id);
+  }, 900);
+  game.coinCollector.lastSweep = Date.now();
+  game.collectCoinDrop(id);
+}
+
+function onCoinEnter(el: Element, done: () => void) {
+  const e = el as HTMLElement;
+  e.style.opacity = '0';
+  requestAnimationFrame(() => {
+    e.style.transition = 'opacity 0.15s ease';
+    e.style.opacity = '1';
+    setTimeout(done, 160);
+  });
+}
+
+function onCoinLeave(el: Element, done: () => void) {
+  const e = el as HTMLElement;
+  const id = Number(e.dataset.dropId);
+  e.style.pointerEvents = 'none';
+  e.style.animation = 'none';
+
+  if (vacuumedDropIds.has(id) && container.value) {
+    const sweepXPct = vacuumedDropPositions.get(id) ?? collectorX.value;
+    vacuumedDropIds.delete(id);
+    vacuumedDropPositions.delete(id);
+
+    const containerRect = container.value.getBoundingClientRect();
+    const rect = e.getBoundingClientRect();
+    const coinCenterX = rect.left - containerRect.left + rect.width / 2;
+    const coinCenterY = rect.top - containerRect.top + rect.height / 2;
+    const sweepXPx = (sweepXPct / 100) * containerRect.width;
+    const sweepYPx = containerRect.height * 0.98;
+    const deltaX = sweepXPx - coinCenterX;
+    const deltaY = sweepYPx - coinCenterY;
+
+    void e.offsetWidth;
+    e.style.transition = 'transform 0.22s ease-in, opacity 0.18s ease-in';
+    requestAnimationFrame(() => {
+      e.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(0.05)`;
+      e.style.opacity = '0';
+    });
+    setTimeout(done, 240);
+  } else {
+    vacuumedDropIds.delete(id);
+    vacuumedDropPositions.delete(id);
+    void e.offsetWidth;
+    e.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
+    requestAnimationFrame(() => {
+      e.style.transform = 'translate(-50%, calc(-50% - 14px)) scale(0.4)';
+      e.style.opacity = '0';
+    });
+    setTimeout(done, 480);
+  }
 }
 
 function onClick(e: MouseEvent) {
@@ -512,7 +603,6 @@ function collectVisitor() {
     setTimeout(() => {
       coinPopups.value = coinPopups.value.filter((p) => p.id !== game.visitor?.spawnedAt);
     }, 1200);
-    playCoinSound("chest");
   }
 }
 
@@ -529,6 +619,11 @@ watch(
   },
   { immediate: true }
 );
+
+function getFishSizeMultiplier(f: { type: string; bornAt?: number; genetics?: { healthMod?: number; mutation?: string } }): number {
+  if (f.bornAt == null) return 1.0;
+  return fishSizeMultiplier(fishAgeRatio(f.bornAt, f.type, f.genetics));
+}
 </script>
 
 <template>
@@ -555,6 +650,9 @@ watch(
       :boredom="f.boredom"
       :care-streak="f.careStreak"
       :is-being-fed="game.feedingFishId === f.id"
+      :size-multiplier="getFishSizeMultiplier(f)"
+      :genetics="f.genetics"
+      :generation="f.generation"
       :ref="setFishRef(f.id)"
       @play="onPlayWithFish" />
 
@@ -567,10 +665,11 @@ watch(
       <FlakeSvg />
     </div>
 
-    <TransitionGroup tag="div" name="coin-drop" class="absolute inset-0">
+    <TransitionGroup tag="div" :css="false" @enter="onCoinEnter" @leave="onCoinLeave" class="absolute inset-0">
       <button
         v-for="drop in game.coinDrops as CoinDropView[]"
         :key="drop.id"
+        :data-drop-id="drop.id"
         class="coin-drop absolute cursor-pointer -translate-x-1/2 -translate-y-1/2 focus:outline-none min-w-[44px] min-h-[44px] flex items-center justify-center"
         :style="coinStyle(drop)"
         :title="`Collect ${drop.value} coins`"
