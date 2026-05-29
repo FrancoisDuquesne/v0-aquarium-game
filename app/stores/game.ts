@@ -1133,7 +1133,7 @@ export const useGameStore = defineStore("game", () => {
     if (!f) return;
     const price = Math.round(fishMarketValue(f) * 0.6);
     coins.value += price;
-    totalCoinsEarned.value = (totalCoinsEarned.value ?? 0) + price;
+    totalCoinsCollected.value += price;
     removeFish(fishId);
   }
 
