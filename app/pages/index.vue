@@ -15,6 +15,7 @@ onMounted(() => {
         description: "Only one tab saves progress. Close other tabs to avoid losing coins.",
         color: "warning",
         duration: 0,
+        position: "top-right",
       });
     }
   }

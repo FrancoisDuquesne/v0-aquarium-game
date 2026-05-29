@@ -93,6 +93,7 @@ watch(
         description: `Your ${species} didn't make it. Remember to keep your fish fed!`,
         color: "error",
         duration: 6000,
+        position: "top-right",
       });
     });
     game.clearPendingDeaths();
@@ -109,6 +110,7 @@ watch(
         description: "Progress may not be saving. Clear some browser storage and reload.",
         color: "warning",
         duration: 0,
+        position: "top-right",
       });
       game.clearStorageWarning();
     }
@@ -139,6 +141,7 @@ watch(
       description: `Care streak ${pop.streak} — bonus coins incoming!`,
       color: "warning",
       duration: 2500,
+      position: "top-right",
     });
     game.clearStreakPop();
   }
@@ -161,6 +164,7 @@ watch(
         description: "Your tank costs coins to run. Feed fish to keep earnings up — check the Tank tab for details.",
         color: "warning",
         duration: 8000,
+        position: "top-right",
       });
     }
   }
@@ -177,6 +181,7 @@ watch(
       description: `+${bonus} coins added to your tank.`,
       color: "success",
       duration: 5000,
+      position: "top-right",
     });
     game.clearDailyBonus();
   },
@@ -196,6 +201,7 @@ watch(
         description: `${def.name} — ${def.desc}`,
         color: "warning",
         duration: 5000,
+        position: "top-right",
       });
     }
   }
@@ -212,6 +218,7 @@ watch(
       description: "A rare fish is swimming through your tank. Click it to collect a bonus!",
       color: "warning",
       duration: 5000,
+      position: "top-right",
     });
     game.clearVisitorArrival();
   }
