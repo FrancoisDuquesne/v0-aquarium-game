@@ -708,6 +708,16 @@ export const useGameStore = defineStore("game", () => {
     pendingSharkWarning.value = false;
   }
 
+  function debugTriggerSharkAttack() {
+    sharkAttack.value = {
+      spawnedAt: Date.now(),
+      expiresAt: Date.now() + SHARK_ATTACK_DURATION_MS,
+      hitsLeft: SHARK_ATTACK_HITS_REQUIRED,
+      y: 20 + Math.random() * 45,
+    };
+    pendingSharkWarning.value = true;
+  }
+
   // ── Breeding — see composables/useBreeding.ts ────────────────────────────────
 
   function chargeFlake() {
@@ -1373,6 +1383,7 @@ export const useGameStore = defineStore("game", () => {
     pendingSharkWarning,
     hitShark,
     clearSharkWarning,
+    debugTriggerSharkAttack,
     prestigeLevel,
     canPrestige,
     backgroundEffect,

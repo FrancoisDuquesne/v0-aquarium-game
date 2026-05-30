@@ -8,6 +8,7 @@ const offlineAmount = ref(0);
 const hasOpenedStore = ref(false);
 
 const toast = useToast();
+const isDev = import.meta.dev;
 
 type Section = "fish" | "shop" | "tank" | "goals";
 
@@ -268,7 +269,16 @@ watch(
 
 <template>
   <div>
-    <div class="absolute top-0 right-0 p-2 z-20">
+    <div class="absolute top-0 right-0 p-2 z-20 flex items-center gap-1">
+      <UButton
+        v-if="isDev"
+        size="xs"
+        color="error"
+        variant="soft"
+        label="🦈"
+        title="Dev: trigger shark attack"
+        class="opacity-60 hover:opacity-100"
+        @click="game.debugTriggerSharkAttack()" />
       <UDropdownMenu :items="menuItems" :ui="{ content: 'min-w-40' }">
         <UButton
           color="neutral"
