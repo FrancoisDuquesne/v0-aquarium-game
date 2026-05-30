@@ -664,6 +664,20 @@ function onHitShark() {
   sharkHitFlash.value = true;
   setTimeout(() => { sharkHitFlash.value = false; }, 140);
 }
+
+// Stable animation delay — set once per attack, never changes while hitsLeft ticks down.
+// If this lived in :style it would recompute on every hitsLeft change, restarting the
+// CSS animation and snapping the shark back off-screen on each tap.
+const sharkAnimDelay = ref('0ms');
+watch(
+  () => game.sharkAttack?.spawnedAt,
+  (spawnedAt) => {
+    if (spawnedAt != null) {
+      sharkAnimDelay.value = `-${Math.max(0, Date.now() - spawnedAt)}ms`;
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -792,14 +806,14 @@ function onHitShark() {
       <div
         v-if="game.sharkAttack"
         class="absolute shark-attack cursor-pointer select-none"
-        style="z-index: 27"
         :style="{
+          zIndex: 27,
           top: game.sharkAttack.y + '%',
           transform: 'translateY(-50%) scaleX(-1)',
           '--shark-dur': (SHARK_ATTACK_DURATION_MS / 1000) + 's',
-          animationDelay: `-${Date.now() - game.sharkAttack.spawnedAt}ms`,
+          animationDelay: sharkAnimDelay,
         }"
-        @click.stop="onHitShark">
+        @pointerdown.stop="onHitShark">
         <div class="flex flex-col items-center gap-1">
           <!-- Hit counter -->
           <div class="shark-hit-badge">
