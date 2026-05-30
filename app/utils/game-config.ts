@@ -423,8 +423,8 @@ export function fishPreviewSize(type: string) {
     FISH_CONFIG.FISH_SIZES[type as keyof typeof FISH_CONFIG.FISH_SIZES] ??
     FISH_CONFIG.FISH_SIZES.goldfish;
   return {
-    w: Math.min(size.width * 0.8, 48),
-    h: Math.min(size.height * 0.8, 32),
+    width:  Math.min(Math.round(size.width  * 0.7), 34),
+    height: Math.min(Math.round(size.height * 0.7), 26),
   };
 }
 
