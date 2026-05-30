@@ -232,6 +232,22 @@ watch(
   }
 );
 
+// ── Shark attack warning ──────────────────────────────────────────────────
+watch(
+  () => game.pendingSharkWarning,
+  (val) => {
+    if (!val) return;
+    toast.add({
+      title: '🦈 Shark attack!',
+      description: 'Tap the shark to scare it off before it eats one of your fish!',
+      color: 'error',
+      duration: 4000,
+      position: 'top-right',
+    });
+    game.clearSharkWarning();
+  }
+);
+
 // ── Visitor arrival toast ─────────────────────────────────────────────────
 watch(
   () => game.pendingVisitorArrival,

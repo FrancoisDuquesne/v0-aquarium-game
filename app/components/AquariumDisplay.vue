@@ -657,6 +657,13 @@ function getFishSizeMultiplier(f: { type: string; bornAt?: number; genetics?: { 
   if (f.bornAt == null) return 1.0;
   return fishSizeMultiplier(fishAgeRatio(f.bornAt, f.type, f.genetics));
 }
+
+const sharkHitFlash = ref(false);
+function onHitShark() {
+  game.hitShark();
+  sharkHitFlash.value = true;
+  setTimeout(() => { sharkHitFlash.value = false; }, 140);
+}
 </script>
 
 <template>
@@ -756,11 +763,64 @@ function getFishSizeMultiplier(f: { type: string; bornAt?: number; genetics?: { 
       class="absolute inset-0 bg-gradient-to-br from-cyan-100/3 via-transparent to-blue-100/3 pointer-events-none animate-pulse"
       style="animation-duration: 4s" />
 
-    <!-- Screen flash for high-value coin collection -->
+    <!-- Shark attack: danger vignette -->
+    <Transition name="shark-danger">
+      <div
+        v-if="game.sharkAttack"
+        class="shark-vignette absolute inset-0 pointer-events-none"
+        style="z-index: 25" />
+    </Transition>
+
+    <!-- Shark attack: countdown bar -->
+    <Transition name="shark-danger">
+      <div
+        v-if="game.sharkAttack"
+        class="absolute top-0 left-0 right-0 pointer-events-none"
+        style="z-index: 26; height: 4px; background: rgba(220,38,38,0.18);">
+        <div
+          class="h-full bg-red-500"
+          :style="{
+            transformOrigin: 'left center',
+            animation: `sharkCountdown ${SHARK_ATTACK_DURATION_MS}ms linear forwards`,
+            animationDelay: `-${Date.now() - game.sharkAttack.spawnedAt}ms`,
+          }" />
+      </div>
+    </Transition>
+
+    <!-- Shark attack: the predator -->
+    <Transition name="shark-appear">
+      <div
+        v-if="game.sharkAttack"
+        class="absolute shark-attack cursor-pointer select-none"
+        style="z-index: 27"
+        :style="{
+          top: game.sharkAttack.y + '%',
+          transform: 'translateY(-50%) scaleX(-1)',
+          '--shark-dur': (SHARK_ATTACK_DURATION_MS / 1000) + 's',
+          animationDelay: `-${Date.now() - game.sharkAttack.spawnedAt}ms`,
+        }"
+        @click.stop="onHitShark">
+        <div class="flex flex-col items-center gap-1">
+          <!-- Hit counter -->
+          <div class="shark-hit-badge">
+            <span v-for="i in SHARK_ATTACK_HITS_REQUIRED" :key="i"
+              class="shark-pip"
+              :class="i <= (SHARK_ATTACK_HITS_REQUIRED - game.sharkAttack.hitsLeft) ? 'shark-pip--hit' : ''" />
+          </div>
+          <!-- Shark SVG with menacing red filter -->
+          <div class="shark-glow" :class="{ 'shark-recoil': sharkHitFlash }">
+            <FishSvg type="shark" :width="72" :height="34" class="shark-svg" />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Screen flash for high-value coin collection / shark hits -->
     <Transition name="flash">
       <div
-        v-if="screenFlash"
-        class="absolute inset-0 pointer-events-none z-40 bg-yellow-200/20" />
+        v-if="screenFlash || sharkHitFlash"
+        class="absolute inset-0 pointer-events-none z-40"
+        :class="sharkHitFlash ? 'bg-red-400/15' : 'bg-yellow-200/20'" />
     </Transition>
   </div>
 </template>
@@ -882,19 +942,106 @@ function getFishSizeMultiplier(f: { type: string; bornAt?: number; genetics?: { 
 .flash-enter-from { opacity: 0; }
 .flash-leave-to   { opacity: 0; }
 
+/* Shark attack — danger vignette */
+.shark-vignette {
+  box-shadow: inset 0 0 55px 18px rgba(220,38,38,0.45);
+  animation: dangerPulse 1s ease-in-out infinite;
+}
+
+@keyframes dangerPulse {
+  0%, 100% { box-shadow: inset 0 0 55px 18px rgba(220,38,38,0.32); }
+  50%       { box-shadow: inset 0 0 85px 28px rgba(220,38,38,0.68); }
+}
+
+/* Shark attack — countdown bar */
+@keyframes sharkCountdown {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Shark attack — the predator swims right→left */
+.shark-attack {
+  animation: sharkApproach var(--shark-dur, 15s) linear forwards;
+}
+
+@keyframes sharkApproach {
+  from { left: 115%; }
+  to   { left: -18%; }
+}
+
+/* Glow / filter for menace */
+.shark-glow {
+  filter: drop-shadow(0 0 6px rgba(220,38,38,0.7)) drop-shadow(0 0 14px rgba(220,38,38,0.35));
+  transition: transform 0.15s ease;
+}
+
+.shark-svg {
+  filter: brightness(0.82) saturate(1.35) hue-rotate(2deg);
+}
+
+/* Recoil on hit */
+.shark-recoil {
+  transform: scale(0.88);
+}
+
+/* Hit counter pips */
+.shark-hit-badge {
+  display: flex;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(220,38,38,0.5);
+  backdrop-filter: blur(4px);
+}
+
+.shark-pip {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.shark-pip--hit {
+  background: #ef4444;
+  border-color: #fca5a5;
+}
+
+/* Shark enter/leave transitions */
+.shark-danger-enter-active { transition: opacity 0.4s ease; }
+.shark-danger-leave-active  { transition: opacity 0.6s ease; }
+.shark-danger-enter-from, .shark-danger-leave-to { opacity: 0; }
+
+.shark-appear-enter-active { transition: opacity 0.3s ease; }
+.shark-appear-leave-active { transition: opacity 0.5s ease, transform 0.5s ease; }
+.shark-appear-enter-from   { opacity: 0; }
+.shark-appear-leave-to     { opacity: 0; transform: translateY(-50%) scaleX(-1) scale(1.3); }
+
 @media (prefers-reduced-motion: reduce) {
   .coin-drop {
     animation-duration: 1ms;
     animation-timing-function: linear;
   }
   .fish-dying,
-  .visitor-fish {
+  .visitor-fish,
+  .shark-attack {
     animation: none;
+  }
+  .shark-vignette {
+    animation: none;
+    box-shadow: inset 0 0 55px 18px rgba(220,38,38,0.5);
   }
   .flash-enter-active,
   .flash-leave-active,
   .visitor-appear-enter-active,
-  .visitor-appear-leave-active {
+  .visitor-appear-leave-active,
+  .shark-danger-enter-active,
+  .shark-danger-leave-active,
+  .shark-appear-enter-active,
+  .shark-appear-leave-active {
     transition: none;
   }
 }

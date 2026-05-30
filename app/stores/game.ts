@@ -12,6 +12,11 @@ import {
   FISH_NAMES,
   PERSONALITY_POOL,
   SICKLY_EARLY_DEATH_CHANCE,
+  SHARK_ATTACK_INTERVAL_MIN_MS,
+  SHARK_ATTACK_INTERVAL_MAX_MS,
+  SHARK_ATTACK_DURATION_MS,
+  SHARK_ATTACK_HITS_REQUIRED,
+  SHARK_ATTACK_COIN_REWARD,
   type GeneticsData,
   type IncubatorState,
   type MarketFish,
@@ -51,6 +56,13 @@ interface VisitorState {
   reward: number;
   y: number; // vertical position % (20–65)
 }
+interface SharkAttackState {
+  spawnedAt: number;
+  expiresAt: number;
+  hitsLeft: number;
+  y: number; // vertical position % (20–65)
+}
+
 interface AutoFeeder {
   owned: boolean;
   active: boolean;
@@ -127,6 +139,7 @@ interface GameState {
   maxCareStreakEver: number;
   dailyState: DailyState;
   lastVisitorDate: string;
+  nextSharkAttackAt: number;
   prestigeLevel: number;
   incubator: IncubatorState;
   netIncomeHistory: number[];
@@ -313,6 +326,9 @@ export const useGameStore = defineStore("game", () => {
   const visitorSessionStartMs = ref(0);
   const lastVisitorDate = ref("");
   const pendingVisitorArrival = ref(false);
+  const sharkAttack = ref<SharkAttackState | null>(null);
+  const nextSharkAttackAt = ref(0);
+  const pendingSharkWarning = ref(false);
   const prestigeLevel = ref(0);
 
   // Breeding / Incubator state
@@ -497,6 +513,12 @@ export const useGameStore = defineStore("game", () => {
         Math.random() * (VISITOR_SPAWN_DELAY_MAX_MS - VISITOR_SPAWN_DELAY_MIN_MS);
       visitor.value = null; // don't persist visitors across sessions
 
+      // Schedule shark attack for this session
+      sharkAttack.value = null; // never persist mid-attack
+      nextSharkAttackAt.value = typeof parsed.nextSharkAttackAt === "number" && parsed.nextSharkAttackAt > now
+        ? parsed.nextSharkAttackAt
+        : now + SHARK_ATTACK_INTERVAL_MIN_MS + Math.random() * (SHARK_ATTACK_INTERVAL_MAX_MS - SHARK_ATTACK_INTERVAL_MIN_MS);
+
       // ── Incubator / Breeding ─────────────────────────────────────────────────
       const savedIncubator = parsed.incubator as Partial<IncubatorState> | undefined;
       if (savedIncubator) {
@@ -571,6 +593,7 @@ export const useGameStore = defineStore("game", () => {
         missions: dailyState.value.missions.map((m) => ({ ...m })),
       },
       lastVisitorDate: lastVisitorDate.value,
+      nextSharkAttackAt: nextSharkAttackAt.value,
       prestigeLevel: prestigeLevel.value,
       netIncomeHistory: [...netIncomeHistory.value],
       incubator: {
@@ -661,6 +684,28 @@ export const useGameStore = defineStore("game", () => {
 
   function clearVisitorArrival() {
     pendingVisitorArrival.value = false;
+  }
+
+  // ── Shark attack ─────────────────────────────────────────────────────────────
+  function _scheduleNextSharkAttack(now: number) {
+    nextSharkAttackAt.value = now
+      + SHARK_ATTACK_INTERVAL_MIN_MS
+      + Math.random() * (SHARK_ATTACK_INTERVAL_MAX_MS - SHARK_ATTACK_INTERVAL_MIN_MS);
+  }
+
+  function hitShark() {
+    if (!sharkAttack.value) return;
+    sharkAttack.value.hitsLeft--;
+    if (sharkAttack.value.hitsLeft <= 0) {
+      coins.value += SHARK_ATTACK_COIN_REWARD;
+      sharkAttack.value = null;
+      _scheduleNextSharkAttack(Date.now());
+      save();
+    }
+  }
+
+  function clearSharkWarning() {
+    pendingSharkWarning.value = false;
   }
 
   // ── Breeding — see composables/useBreeding.ts ────────────────────────────────
@@ -1178,6 +1223,29 @@ export const useGameStore = defineStore("game", () => {
       pendingVisitorArrival.value = true;
     }
 
+    // ── Shark attack logic ───────────────────────────────────────────────────
+    if (sharkAttack.value) {
+      if (now >= sharkAttack.value.expiresAt) {
+        // Failed — kill one random fish
+        if (fish.value.length > 0) {
+          const victim = fish.value[Math.floor(Math.random() * fish.value.length)];
+          pendingDeaths.value = [...pendingDeaths.value, { id: victim.id, name: victim.name, type: victim.type }];
+          fish.value = fish.value.filter((f) => f.id !== victim.id);
+          save();
+        }
+        sharkAttack.value = null;
+        _scheduleNextSharkAttack(now);
+      }
+    } else if (fish.value.length > 0 && nextSharkAttackAt.value > 0 && now >= nextSharkAttackAt.value) {
+      sharkAttack.value = {
+        spawnedAt: now,
+        expiresAt: now + SHARK_ATTACK_DURATION_MS,
+        hitsLeft: SHARK_ATTACK_HITS_REQUIRED,
+        y: 20 + Math.random() * 45,
+      };
+      pendingSharkWarning.value = true;
+    }
+
     // ── Market listing resolution ────────────────────────────────────────────
     checkListings();
 
@@ -1301,6 +1369,10 @@ export const useGameStore = defineStore("game", () => {
     claimMission,
     visitor,
     pendingVisitorArrival,
+    sharkAttack,
+    pendingSharkWarning,
+    hitShark,
+    clearSharkWarning,
     prestigeLevel,
     canPrestige,
     backgroundEffect,

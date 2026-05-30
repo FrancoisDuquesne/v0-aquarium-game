@@ -464,6 +464,13 @@ export const VISITOR_SPAWN_DELAY_MAX_MS = 300_000;       // latest 5 min
 export const VISITOR_SPECIES = ["angelfish", "shark", "betta", "tropical", "jewel-cichlid"] as const;
 export const VISITOR_NAMES = ["Glimmer", "Azure", "Specter", "Nimbus", "Oracle", "Phantom", "Solstice", "Dusk"];
 
+// ── Shark attack mini-challenge ────────────────────────────────────────────────
+export const SHARK_ATTACK_INTERVAL_MIN_MS = 5  * 60_000;  // 5 min minimum between attacks
+export const SHARK_ATTACK_INTERVAL_MAX_MS = 12 * 60_000;  // 12 min maximum
+export const SHARK_ATTACK_DURATION_MS     = 15_000;        // 15s window to fend off
+export const SHARK_ATTACK_HITS_REQUIRED   = 6;             // taps needed to scare off
+export const SHARK_ATTACK_COIN_REWARD     = 45;            // coins awarded on success
+
 // ── Prestige ("The Great Release") ────────────────────────────────────────────
 export const PRESTIGE_MIN_FISH = 8;
 export const PRESTIGE_MIN_COINS = 2000;
