@@ -709,6 +709,7 @@ export const useGameStore = defineStore("game", () => {
   }
 
   function debugTriggerSharkAttack() {
+    if (!import.meta.dev) return;
     sharkAttack.value = {
       spawnedAt: Date.now(),
       expiresAt: Date.now() + SHARK_ATTACK_DURATION_MS,
